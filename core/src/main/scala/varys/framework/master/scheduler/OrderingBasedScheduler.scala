@@ -15,6 +15,9 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
 
   val NIC_BitPS = System.getProperty("varys.network.nicMbps", "1024").toDouble * 1048576.0
 
+  var times: Int = 0
+
+
   override def schedule(schedulerInput: SchedulerInput): SchedulerOutput = {
     val markedForRejection = new ArrayBuffer[CoflowInfo]()
 
@@ -24,6 +27,11 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
     // STEP 2: Perform WSS + Backfilling
     val sBpsFree = new HashMap[String, Double]().withDefaultValue(NIC_BitPS)
     val rBpsFree = new HashMap[String, Double]().withDefaultValue(NIC_BitPS)
+
+    //test NIC_BitPs
+    times = times + 1
+    println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!%d:\t%f".format(times, NIC_BitPS))
+    println(System.getProperty("varys.network.nicMbps", "1024").getClass)
 
     for (cf <- sortedCoflows) {
       logInfo("Scheduling " + cf)

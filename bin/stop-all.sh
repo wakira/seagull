@@ -12,3 +12,8 @@ bin=`cd "$bin"; pwd`
 # Stop the slaves, then the master
 "$bin"/stop-slaves.sh
 "$bin"/stop-master.sh
+
+# Clear log, added by frank
+cd ./logs
+echo "Clear logs in" `pwd`
+rm *

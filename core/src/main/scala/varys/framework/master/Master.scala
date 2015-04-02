@@ -365,6 +365,7 @@ private[varys] class Master(
         actor: ActorRef) {
       
       logTrace("handleGetFlow(" + flowId + ", " + coflowId + ", " + slaveId + ", " + actor + ")")
+      println("handleGetFlow(" + flowId + ", " + coflowId + ", " + slaveId + ", " + actor + ")")
 
       val client = idToClient.get(clientId)
       assert(client != null)
