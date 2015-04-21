@@ -402,7 +402,7 @@ class VarysClient(
   
   /**
    * Performs exactly one get operation
-   * Cloud block here? marked by frank
+   * Cloud thread get block here? marked by frank
    */
   @throws(classOf[VarysException])
   private def getOne(flowDesc: FlowDescription): (FlowDescription, Array[Byte]) = {

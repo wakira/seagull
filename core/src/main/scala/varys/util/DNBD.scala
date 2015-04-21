@@ -7,18 +7,21 @@ package varys.util
 import java.net.{DatagramPacket, InetAddress, DatagramSocket}
 import akka.actor.{Props, Actor}
 import varys.Logging
+import scala.sys.process._
 
 case object StartServer
 case class GetBottleNeck(host: String, bandwidth: Int)
-case class UpdateBandwidth(bandwidth: Int)
+case class UpdateBandwidth(bandwidth: Double)
 
 class DNBD (
-  val p: Int)
+  val p: Int,
+  val eth: String)
   extends Actor with Logging{
 
   val port = p
+  val interface = eth
   var isStart = false
-  var bandwidth = 0
+  var bandwidth: Double = 0
 
 
   override def receive = {
@@ -44,13 +47,21 @@ class DNBD (
     case _ => logError("DNBD receive something wrong !!!")
   }
 
+  override def preStart(): Unit = {
+    //TODO get bandwidth of nic "interface"
+  }
+
 
   def send(host: String, bandwidth: Int): Int = {
     try {
       logInfo("DNBD bandwidth of Client: %d".format(bandwidth))
       val s = new DatagramSocket()
       val addr = InetAddress.getByName(host)
-      val data = bandwidth.toString.getBytes
+
+      //get remaining bw of this end host
+      val bd = new Bandwidth(interface)
+      val transRate = bd.readTx()
+      val data = (bandwidth - transRate).toString.getBytes
       //println("client:")
       //data.foreach(print)
       val packet = new DatagramPacket(data, data.length, addr, port)
@@ -62,7 +73,7 @@ class DNBD (
       s.receive(recvPacket)
       val buf = new String(recvPacket.getData)
       val bwPattern = "[0-9]+".r
-      var size = bwPattern.findFirstIn(buf).getOrElse(0).toString.toInt
+      val size = bwPattern.findFirstIn(buf).getOrElse(0).toString.toInt
 
       logInfo("DNBD bottleneck of Network: %d".format(size))
       return size
@@ -87,10 +98,10 @@ class DNBD (
       var size = bwPattern.findFirstIn(buf).getOrElse(0).toString.toInt
       logInfo("DNBD Server receive bandwidth: %d".format(size))
 
-      //TODO: should get the real bandwith of the server
-      val localBw = 100;
-      if (size > localBw)
-        size = localBw
+      val bd = new Bandwidth(interface)
+      val recvRate = bd.readRx();
+      if (size > recvRate)
+        size = recvRate
 
       //send the bottleneck back to the client
       val clientAddr = recvPacket.getAddress;
@@ -101,5 +112,38 @@ class DNBD (
     true
   }
 
+  class Bandwidth(val interface: String) {
+    val eth = interface
+
+    def readRx(): Int = {
+      var rx: Int = 0
+
+      val rx0Str = ("cat /sys/class/net/%s/statistics/rx_bytes".format(interface) !!)
+      val rx0 = rx0Str.substring(0, (rx0Str.length - 1)).toInt
+      //println(rx0)
+      //rx0Str.foreach(println)
+      Thread.sleep(100)
+      val rx1Str = ("cat /sys/class/net/%s/statistics/rx_bytes".format(interface) !!)
+      val rx1 = rx1Str.substring(0, rx1Str.length - 1).toInt
+      //println(rx1Str)
+      rx = (rx1 - rx0) * 10
+      //println(rx)
+      return rx
+    }
+
+    def readTx(): Int = {
+      var tx: Int = 0
+      //TODO: development
+      val tx0Str = ("cat /sys/class/net/%s/statistics/tx_bytes".format(interface) !!)
+      val tx0 = tx0Str.substring(0, (tx0Str.length - 1)).toInt
+      Thread.sleep(100)
+      val tx1Str = ("cat /sys/class/net/%s/statistics/tx_bytes".format(interface) !!)
+      val tx1 = tx1Str.substring(0, tx1Str.length - 1).toInt
+      //println(rx1Str)
+      tx = (tx1 - tx0) * 10
+      //println(tx)
+      return tx
+    }
+  }
 
 }
