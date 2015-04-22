@@ -10,8 +10,8 @@ import varys.Logging
 import scala.sys.process._
 
 case object StartServer
-case class GetBottleNeck(host: String, bandwidth: Int)
-case class UpdateBandwidth(bandwidth: Double)
+case class GetBottleNeck(host: String)
+case class UpdateBandwidth(bandwidth: Int)
 
 class DNBD (
   val p: Int,
@@ -21,13 +21,13 @@ class DNBD (
   val port = p
   val interface = eth
   var isStart = false
-  var bandwidth: Double = 0
+  var bandwidth: Int = 0
 
 
   override def receive = {
     //a blocking call here!!!!
-    case GetBottleNeck(host, bandwidth) =>
-      val bn = send(host, bandwidth)
+    case GetBottleNeck(host) =>
+      val bn = send(host)
       sender ! bn
 
     case UpdateBandwidth(bw) =>
@@ -48,13 +48,14 @@ class DNBD (
   }
 
   override def preStart(): Unit = {
-    //TODO get bandwidth of nic "interface"
+    val bd = new Bandwidth(interface)
+    bandwidth = bd.getBW()
+    logInfo("DNBD bandwidth of host is: %d B/S".format(bandwidth))
   }
 
 
-  def send(host: String, bandwidth: Int): Int = {
+  def send(host: String): Int = {
     try {
-      logInfo("DNBD bandwidth of Client: %d".format(bandwidth))
       val s = new DatagramSocket()
       val addr = InetAddress.getByName(host)
 
@@ -62,6 +63,7 @@ class DNBD (
       val bd = new Bandwidth(interface)
       val transRate = bd.readTx()
       val data = (bandwidth - transRate).toString.getBytes
+      logInfo("DNBD TX bandwidth of Source: %d".format(bandwidth - transRate))
       //println("client:")
       //data.foreach(print)
       val packet = new DatagramPacket(data, data.length, addr, port)
@@ -96,11 +98,13 @@ class DNBD (
       val buf = new String(recvPacket.getData)
       val bwPattern = "[0-9]+".r
       var size = bwPattern.findFirstIn(buf).getOrElse(0).toString.toInt
-      logInfo("DNBD Server receive bandwidth: %d".format(size))
+      logInfo("DNBD destination receive bandwidth: %d".format(size))
 
       val bd = new Bandwidth(interface)
       val recvRate = bd.readRx();
-      if (size > recvRate)
+      val rxRate = bandwidth - recvRate;
+      logInfo("DNBD RX bandwidth of destination: %d".format(rxRate))
+      if (size > rxRate)
         size = recvRate
 
       //send the bottleneck back to the client
@@ -119,30 +123,62 @@ class DNBD (
       var rx: Int = 0
 
       val rx0Str = ("cat /sys/class/net/%s/statistics/rx_bytes".format(interface) !!)
-      val rx0 = rx0Str.substring(0, (rx0Str.length - 1)).toInt
+      val pattern = "[0-9]+".r
+      //TODO it's may not safe here
+      val rx0 = pattern.findFirstIn(rx0Str).getOrElse(0).toString
       //println(rx0)
       //rx0Str.foreach(println)
       Thread.sleep(100)
       val rx1Str = ("cat /sys/class/net/%s/statistics/rx_bytes".format(interface) !!)
-      val rx1 = rx1Str.substring(0, rx1Str.length - 1).toInt
+      //TODO it's may not safe here
+      val rx1 = pattern.findFirstIn(rx1Str).getOrElse(0).toString
       //println(rx1Str)
-      rx = (rx1 - rx0) * 10
+      rx = stringMinus(rx1, rx0) * 10
       //println(rx)
       return rx
     }
 
     def readTx(): Int = {
       var tx: Int = 0
-      //TODO: development
       val tx0Str = ("cat /sys/class/net/%s/statistics/tx_bytes".format(interface) !!)
-      val tx0 = tx0Str.substring(0, (tx0Str.length - 1)).toInt
+      val pattern = "[0-9]+".r
+      //TODO it's may not safe here
+      val tx0 = pattern.findFirstIn(tx0Str).getOrElse(0).toString
       Thread.sleep(100)
       val tx1Str = ("cat /sys/class/net/%s/statistics/tx_bytes".format(interface) !!)
-      val tx1 = tx1Str.substring(0, tx1Str.length - 1).toInt
+      //TODO it's may not safe here
+      val tx1 = pattern.findFirstIn(tx1Str).getOrElse(0).toString
       //println(rx1Str)
-      tx = (tx1 - tx0) * 10
+      tx = stringMinus(tx1, tx0) * 10
       //println(tx)
       return tx
+    }
+
+    def getBW(): Int = {
+      //val res = "echo 05806056966" #| "sudo -S ethtool eth0" #| "grep Speed" !
+      val buffer = new StringBuffer()
+      val cmd = Seq("ethtool", eth)
+      val lines = cmd lines_! ProcessLogger(buffer append _)
+      //println(lines)
+      var bwStr = ""
+      for (s <- lines if s.contains("Speed")) bwStr = s
+      val bwPattern = "[0-9]+".r
+      val bw = bwPattern.findFirstIn(bwStr).getOrElse(0).toString.toInt
+      val ret = bw / 8 * 1024 * 1024
+      //println(ret)
+      ret
+
+    }
+
+    def stringMinus(l: String, r: String): Int = {
+      var res = 0
+      var size = l.size
+      if (r.size < size)
+        size = r.size
+      for (x <- size -1 to 0 by -1) {
+        res = res + (l.charAt(x) - r.charAt(x)) * (scala.math.pow(10, (size - 1 - x)).toInt)
+      }
+      res
     }
   }
 
