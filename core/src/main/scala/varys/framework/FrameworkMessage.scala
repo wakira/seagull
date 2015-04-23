@@ -198,3 +198,11 @@ private[varys] case class SlaveState(
     rxBps: Double,
     txBps: Double,
     masterWebUiUrl: String)
+
+
+//my message
+
+//app to client, start the dnbd
+private[varys] case class StartDNBD(port: Int, interface: String)
+
+private[varys] case class GetBottleneck(host: String)

@@ -5,7 +5,7 @@ package varys.util
  */
 
 import java.net.{DatagramPacket, InetAddress, DatagramSocket}
-import akka.actor.{Props, Actor}
+import akka.actor.{ActorRef, Props, Actor}
 import varys.Logging
 import scala.sys.process._
 
@@ -23,12 +23,21 @@ class DNBD (
   var isStart = false
   var bandwidth: Int = 0
 
+  class sendTask(sender: ActorRef, host: String) extends Runnable {
+    val sender_ = sender
+    val host_ = host
+    override def run: Unit = {
+      val bn = send(host)
+      sender_ ! bn
+    }
+  }
+
 
   override def receive = {
-    //a blocking call here!!!!
     case GetBottleNeck(host) =>
-      val bn = send(host)
-      sender ! bn
+      //never block in actor !!!
+      val start = new Thread(new sendTask(sender, host))
+      start.run()
 
     case UpdateBandwidth(bw) =>
       bandwidth = bw
@@ -105,8 +114,10 @@ class DNBD (
       val rxRate = bandwidth - recvRate;
       logInfo("DNBD RX bandwidth of destination: %d".format(rxRate))
       if (size > rxRate)
-        size = recvRate
+        size = rxRate
 
+      //TODO it's better to add ip info in log
+      logInfo("DNBD the bottleneck of the link: %d".format(size))
       //send the bottleneck back to the client
       val clientAddr = recvPacket.getAddress;
       val clientPort = recvPacket.getPort;

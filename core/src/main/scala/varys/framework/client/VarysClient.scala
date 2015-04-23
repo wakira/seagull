@@ -63,8 +63,15 @@ class VarysClient(
   var clientHost = Utils.localHostName()
   var clientCommPort = dataServer.getCommPort
 
+
+  //add DNBD here by frankfzw!!!
   class ClientActor extends Actor with Logging {
     var masterAddress: Address = null
+
+    //add a DNBD client
+    //val port = 6543
+    var dnbdActor: ActorRef = null
+    var isDNBDStart = false
 
     // To avoid calling listener.disconnected() multiple times
     var alreadyDisconnected = false  
@@ -168,6 +175,26 @@ class VarysClient(
 
         // Free local resources
         freeLocalResources(coflowId)
+
+      case StartDNBD(port_, interface_) =>
+        if (isDNBDStart)
+          logError("DNBD is already started")
+        else {
+          logInfo("DNBD start on %s".format(interface_))
+          //create a new thread to start DNBD
+          val start = new Thread(new Runnable {
+            override def run(): Unit = {
+              dnbdActor = actorSystem.actorOf(Props(new DNBD(port_, interface_)))
+              Thread.sleep(1000)
+              dnbdActor ! StartServer
+            }
+          })
+          start.start()
+          isDNBDStart = true
+        }
+
+
+
     }
 
     /**
@@ -185,6 +212,14 @@ class VarysClient(
   }
 
   private def now() = System.currentTimeMillis
+
+  //start DNBD
+  def startDNBD(port: Int, interface: String): Unit = {
+    if (clientActor != null) {
+      clientActor ! startDNBD(port, interface)
+    }
+
+  }
 
   def start() {
     // Just launch an actor; it will call back into the listener.

@@ -178,6 +178,10 @@ private[varys] object BroadcastSender extends Logging {
 
     val listener = new TestListener
     val client = new VarysClient("BroadcastSender", url, listener)
+
+    //TODO start the DNBD here, frankfzw
+
+    //TODO let the client know the name of interface
     client.start()
     
     val desc = new CoflowDescription(
