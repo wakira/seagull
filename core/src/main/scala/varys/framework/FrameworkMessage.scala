@@ -205,4 +205,6 @@ private[varys] case class SlaveState(
 //app to client, start the dnbd
 private[varys] case class StartDNBD(port: Int, interface: String)
 
-private[varys] case class GetBottleneck(host: String)
+private[varys] case object StartServer
+private[varys] case class GetBottleNeck(host: String)
+private[varys] case class UpdateBandwidth(bandwidth: Int)

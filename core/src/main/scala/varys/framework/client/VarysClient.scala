@@ -2,6 +2,7 @@ package varys.framework.client
 
 import akka.actor._
 import akka.actor.Terminated
+import akka.util.Timeout
 import akka.util.duration._
 import akka.pattern.ask
 import akka.pattern.AskTimeoutException
@@ -180,7 +181,7 @@ class VarysClient(
         if (isDNBDStart)
           logError("DNBD is already started")
         else {
-          logInfo("DNBD start on %s".format(interface_))
+          logInfo("DNBD start on %s, port: %d".format(interface_, port_))
           //create a new thread to start DNBD
           val start = new Thread(new Runnable {
             override def run(): Unit = {
@@ -193,6 +194,20 @@ class VarysClient(
           isDNBDStart = true
         }
 
+      case GetBottleNeck(host_) =>
+        if (dnbdActor == null){
+          logError("DNBD didn't start!!!!")
+        } else {
+          implicit val timeout = Timeout(5 seconds)
+          try {
+            val future = dnbdActor ? GetBottleNeck(host_)
+            val bwBottelNeck = Await.result(future, timeout.duration).asInstanceOf[Int]
+            sender ! bwBottelNeck
+          } catch {
+            case e: Exception =>
+              logError("DNBD get network bottleneck timeout!!!")
+          }
+        }
 
 
     }

@@ -9,9 +9,9 @@ import akka.actor.{ActorRef, Props, Actor}
 import varys.Logging
 import scala.sys.process._
 
-case object StartServer
-case class GetBottleNeck(host: String)
-case class UpdateBandwidth(bandwidth: Int)
+import varys.framework._
+
+
 
 class DNBD (
   val p: Int,
