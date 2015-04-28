@@ -1,6 +1,6 @@
 package varys.framework.master.scheduler
 
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{HashMap, ArrayBuffer}
 
 import varys.framework.master.{CoflowInfo, SlaveInfo}
 
@@ -20,7 +20,9 @@ trait CoflowScheduler {
  */
 case class SchedulerInput(
     activeCoflows: ArrayBuffer[CoflowInfo],
-    activeSlaves: ArrayBuffer[SlaveInfo]
+    activeSlaves: ArrayBuffer[SlaveInfo],
+    sBpsFree: HashMap[String, Double],
+    dBpsFree: HashMap[String, Double]
 )
 
 /**

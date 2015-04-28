@@ -12,6 +12,7 @@ import java.util.Date
 import java.util.concurrent.atomic._
 import java.util.concurrent.ConcurrentHashMap
 
+import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.collection.JavaConversions._
 
@@ -501,9 +502,11 @@ private[varys] class Master(
       //DNBD get the real bottleneck here of the network
       val realActiveCoflows = calFlowBottleneck(activeCoflows)
       //TODO get the real bandwidth of all source and destination
+      val sBpsFree = calSourceBpsFree(activeCoflows)
+      val dBpsFree = calDestinationBpsFree(activeCoflows)
 
       val activeSlaves = idToSlave.values.toBuffer.asInstanceOf[ArrayBuffer[SlaveInfo]]
-      val schedulerOutput = coflowScheduler.schedule(SchedulerInput(realActiveCoflows, activeSlaves))
+      val schedulerOutput = coflowScheduler.schedule(SchedulerInput(realActiveCoflows, activeSlaves, sBpsFree, dBpsFree))
 
       val step12Dur = now - st
       st = now
@@ -552,26 +555,56 @@ private[varys] class Master(
 
       //val bottlneckMap = new HashMap[String, String]()
       for (cf <- tempCoflow) {
-        //val sourceClient = cf.actor
-        try {
           cf.getFlows.groupBy(_.destClient).foreach { tuple =>
-            val client = tuple._1
+            //val client = tuple._1
+
+            //TODO find a more elegant way
             val timeout = 5000.millis
-            val future = client.actor.ask(GetBottleNeck(tuple._1.host))(timeout)
-            val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
+            for (f <- tuple._2) {
+              if (!idToClient.containsKey(f.getSourceClientId())) {
+                logError("Master calculate flow bottleneck error!! Client %s doesn't exists!!!".format(f.getSourceClientId()))
+                logError("\tidToClient Keys: " + idToClient.keys().foreach(println))
+                logError("\tidToClient Values: " + idToClient.values())
+              } else {
+                try {
+                  val sourceClient = idToClient.get(f.getSourceClientId())
+                  val future = sourceClient.actor.ask(GetBottleNeck(tuple._1.host))(timeout)
+                  val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
+                  cf.updateFlowBottleneck(f.getFlowId(), bdRes.toDouble)
+                } catch {
+                  case e: Exception =>
+                    logError("DNBD: Coflow" + cf.id + " getting bottleneck failed. Details: Source Client ID " + f.getSourceClientId() + " Flow ID " + f.getFlowId())
+                }
 
-            // update bottleneck of every flow
-            for (flow <- tuple._2) {
+              }
 
-              cf.updateFlowBottleneck(flow.getFlowId(), bdRes.toDouble)
             }
+
           }
-        } catch {
-          case e: Exception =>
-            logError("DNBD: Coflow" + cf.id + " getting bottleneck failed")
-        }
       }
       tempCoflow
+    }
+
+    //
+    def calSourceBpsFree(activeCoflow: ArrayBuffer[CoflowInfo]): HashMap[String, Double] = {
+      val sBpsFree = new HashMap[String, Double]()
+      for (cf <- activeCoflow) {
+        //get remaining tx bandwidth from sources
+        try {
+          cf.getFlows.groupBy(_.source).foreach { tuple =>
+            val client = tuple._1
+            if (!sBpsFree.contains(client)) {
+
+            }
+          }
+        }
+      }
+      sBpsFree
+    }
+
+    def calDestinationBpsFree(activeCoflow: ArrayBuffer[CoflowInfo]): HashMap[String, Double] = {
+      val dBpsFree = new HashMap[String, Double]()
+      dBpsFree
     }
 
     /** 

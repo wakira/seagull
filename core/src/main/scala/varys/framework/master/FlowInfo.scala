@@ -34,6 +34,9 @@ private[varys] class FlowInfo(
   //DNBD it's used to update flowinfo
   def getFlowId() = desc.id
 
+  //DNBD it's used to get id of source client
+  def getSourceClientId() = desc.originHostId
+
   override def toString:String = "FlowInfo(" + source + " --> " + destClient.host + "[" + desc + 
     "], bytesLeft=" + bytesLeft + ", currentBps=" + currentBps + ")"
 }

@@ -46,6 +46,9 @@ class VarysClient(
   var clientId: String = null
   var clientActor: ActorRef = null
 
+
+  //val DNBD_PORT = 5678
+
   // ExecutionContext for Futures
   implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
 
@@ -209,6 +212,36 @@ class VarysClient(
           }
         }
 
+      case GetRemainingTX =>
+        if (dnbdActor == null){
+          logError("DNBD didn't start!!!!")
+        } else {
+          implicit val timeout = Timeout(5 seconds)
+          try {
+            val future = dnbdActor ? GetRemainingTX
+            val remainingBW = Await.result(future, timeout.duration).asInstanceOf[Int]
+            sender ! remainingBW
+          } catch {
+            case e: Exception =>
+              logError("DNBD get host remaining tx bandwidth timeout!!!")
+          }
+        }
+
+      case GetRemainingRX =>
+        if (dnbdActor == null){
+          logError("DNBD didn't start!!!!")
+        } else {
+          implicit val timeout = Timeout(5 seconds)
+          try {
+            val future = dnbdActor ? GetRemainingRX
+            val remainingBW = Await.result(future, timeout.duration).asInstanceOf[Int]
+            sender ! remainingBW
+          } catch {
+            case e: Exception =>
+              logError("DNBD get host remaining rx bandwidth timeout!!!")
+          }
+        }
+
       //case _ =>
         //logError("Client Actor receive something wrong !!!")
 
@@ -232,7 +265,7 @@ class VarysClient(
   private def now() = System.currentTimeMillis
 
   //start DNBD
-  def startDNBD(port: Int, interface: String): Unit = {
+  def startDNBD(port: Int = 5678, interface: String = "eth0"): Unit = {
     if (clientActor != null) {
       clientActor ! StartDNBD(port, interface)
     }
@@ -378,7 +411,8 @@ class VarysClient(
         size, 
         numReceivers, 
         clientHost, 
-        clientCommPort)
+        clientCommPort,
+        clientId)
 
     val serialObj = Utils.serialize[T](obj)
     handlePut(desc, serialObj)
@@ -412,7 +446,8 @@ class VarysClient(
         size, 
         numReceivers, 
         clientHost, 
-        clientCommPort)
+        clientCommPort,
+        clientId)
 
     handlePut(desc)
   }
@@ -429,7 +464,8 @@ class VarysClient(
         size, 
         numReceivers, 
         clientHost, 
-        clientCommPort)
+        clientCommPort,
+        clientId)
 
     handlePut(desc)
   }
@@ -448,7 +484,8 @@ class VarysClient(
           blk._2, 
           blk._3, 
           clientHost, 
-          clientCommPort))
+          clientCommPort,
+          clientId))
 
     handlePutMultiple(descs, coflowId, DataType.FAKE)
   }

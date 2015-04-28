@@ -23,6 +23,7 @@ class DNBD (
   var isStart = false
   var bandwidth: Int = 0
 
+
   class sendTask(sender: ActorRef, host: String) extends Runnable {
     val sender_ = sender
     val host_ = host
@@ -32,12 +33,17 @@ class DNBD (
     }
   }
 
-  class getRemainningBWTask(sender: ActorRef) extends Runnable {
+  class getRemainningBWTask(sender: ActorRef, isTx: Boolean) extends Runnable {
     val sender_ = sender
     override def run: Unit = {
       val bd = new Bandwidth(interface)
-      val transRate = bd.readTx()
-      sender_ ! bandwidth - transRate
+      if (isTx) {
+        val transRate = bd.readTx()
+        sender_ ! bandwidth - transRate
+      } else {
+        val transRate = bd.readRx()
+        sender_ ! bandwidth - transRate
+      }
     }
   }
 
@@ -48,8 +54,12 @@ class DNBD (
       val start = new Thread(new sendTask(sender, host))
       start.run()
 
-    case GetRemainningBW =>
-      val start = new Thread(new getRemainningBWTask(sender))
+    case GetRemainingTX =>
+      val start = new Thread(new getRemainningBWTask(sender, true))
+      start.run()
+
+    case GetRemainingRX =>
+      val start = new Thread(new getRemainningBWTask(sender, false))
       start.run()
 
     case StartServer =>

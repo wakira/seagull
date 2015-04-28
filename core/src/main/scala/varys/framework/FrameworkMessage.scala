@@ -207,5 +207,7 @@ private[varys] case class StartDNBD(port: Int, interface: String)
 
 private[varys] case object StartServer
 private[varys] case class GetBottleNeck(host: String)
-private[varys] case object GetRemainningBW
+private[varys] case object GetRemainingTX
+private[varys] case object GetRemainingRX
+
 
