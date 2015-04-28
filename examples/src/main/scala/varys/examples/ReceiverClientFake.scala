@@ -31,6 +31,7 @@ private[varys] object ReceiverClientFake {
     val listener = new TestListener
     val client = new VarysClient("ReceiverClientFake", url, listener)
     client.start()
+    client.startDNBD(1234, "eth0")
     
     Thread.sleep(5000)
     

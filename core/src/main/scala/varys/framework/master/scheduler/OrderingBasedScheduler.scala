@@ -15,7 +15,7 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
 
   val NIC_BitPS = System.getProperty("varys.network.nicMbps", "1024").toDouble * 1048576.0
 
-  var times: Int = 0
+  //var times: Int = 0
 
 
   override def schedule(schedulerInput: SchedulerInput): SchedulerOutput = {
@@ -29,9 +29,9 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
     val rBpsFree = new HashMap[String, Double]().withDefaultValue(NIC_BitPS)
 
     //test NIC_BitPs
-    times = times + 1
-    println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!%d:\t%f".format(times, NIC_BitPS))
-    println(System.getProperty("varys.network.nicMbps", "1024").getClass)
+    //times = times + 1
+    //println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!%d:\t%f".format(times, NIC_BitPS))
+    //println(System.getProperty("varys.network.nicMbps", "1024").getClass)
 
     for (cf <- sortedCoflows) {
       logInfo("Scheduling " + cf)
@@ -46,7 +46,10 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
           val src = flowInfo.source
           val dst = flowInfo.destClient.host
 
-          val minFree = math.min(sBpsFree(src), rBpsFree(dst))
+          //DNBD: use bottleneck of every flow instead
+          //val minFree = math.min(sBpsFree(src), rBpsFree(dst))
+          val minFree = flowInfo.bottleneck
+          logDebug("Flow %s --> %s bottlneck: %f".format(flowInfo.source, flowInfo.destClient.host, flowInfo.bottleneck))
           if (minFree > 0.0) {
             flowInfo.currentBps = calcFlowRate(flowInfo, cf, minFree)
             if (math.abs(flowInfo.currentBps) < 1e-6) {

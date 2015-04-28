@@ -33,6 +33,9 @@ private[varys] object SenderClientFake {
     val client = new VarysClient("SenderClientFake", url, listener)
     client.start()
 
+    //start DNBD
+    client.startDNBD(5678, "eth0")
+
     val desc = new CoflowDescription("DEFAULT", CoflowType.DEFAULT, 1, LEN_BYTES)
     val coflowId = client.registerCoflow(desc)
     

@@ -209,6 +209,9 @@ class VarysClient(
           }
         }
 
+      //case _ =>
+        //logError("Client Actor receive something wrong !!!")
+
 
     }
 
@@ -231,7 +234,7 @@ class VarysClient(
   //start DNBD
   def startDNBD(port: Int, interface: String): Unit = {
     if (clientActor != null) {
-      clientActor ! startDNBD(port, interface)
+      clientActor ! StartDNBD(port, interface)
     }
 
   }

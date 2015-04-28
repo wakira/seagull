@@ -14,6 +14,9 @@ private[varys] class FlowInfo(
   var currentBps = 0.0
   var lastScheduled: Long = 0L
 
+  //DNBD bottlenck informantion
+  var bottleneck: Double = 0
+
   var bytesLeft_ = new AtomicLong(desc.sizeInBytes)
   def bytesLeft: Long = bytesLeft_.get()
 
@@ -27,6 +30,9 @@ private[varys] class FlowInfo(
   def decreaseBytes(byteToDecrease: Long) { 
     bytesLeft_.getAndAdd(-byteToDecrease) 
   }
+
+  //DNBD it's used to update flowinfo
+  def getFlowId() = desc.id
 
   override def toString:String = "FlowInfo(" + source + " --> " + destClient.host + "[" + desc + 
     "], bytesLeft=" + bytesLeft + ", currentBps=" + currentBps + ")"

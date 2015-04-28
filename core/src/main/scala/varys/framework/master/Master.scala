@@ -3,6 +3,7 @@ package varys.framework.master
 import akka.actor._
 import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, RemoteClientShutdown}
 import akka.util.duration._
+import akka.pattern.ask
 import akka.dispatch._
 import akka.routing._
 
@@ -19,6 +20,8 @@ import varys.framework.master.scheduler._
 import varys.framework.master.ui.MasterWebUI
 import varys.{Logging, Utils, VarysException}
 import varys.util.{AkkaUtils, SlaveToBpsMap}
+
+import scala.concurrent.Await
 
 private[varys] class Master(
     systemName:String, 
@@ -494,9 +497,13 @@ private[varys] class Master(
       val activeCoflows = idToCoflow.values.toBuffer.asInstanceOf[ArrayBuffer[CoflowInfo]].filter(
         x => x.remainingSizeInBytes > 0 && 
         (x.curState == CoflowState.READY || x.curState == CoflowState.RUNNING))
-      
+
+      //DNBD get the real bottleneck here of the network
+      val realActiveCoflows = calFlowBottleneck(activeCoflows)
+      //TODO get the real bandwidth of all source and destination
+
       val activeSlaves = idToSlave.values.toBuffer.asInstanceOf[ArrayBuffer[SlaveInfo]]
-      val schedulerOutput = coflowScheduler.schedule(SchedulerInput(activeCoflows, activeSlaves))
+      val schedulerOutput = coflowScheduler.schedule(SchedulerInput(realActiveCoflows, activeSlaves))
 
       val step12Dur = now - st
       st = now
@@ -536,6 +543,35 @@ private[varys] class Master(
       }
 
       true
+    }
+
+
+    //DNBD update bottleneck of every flow in active coflow before scheduling
+    def calFlowBottleneck(activeCoflow: ArrayBuffer[CoflowInfo]): ArrayBuffer[CoflowInfo] = {
+      val tempCoflow = activeCoflow
+
+      //val bottlneckMap = new HashMap[String, String]()
+      for (cf <- tempCoflow) {
+        //val sourceClient = cf.actor
+        try {
+          cf.getFlows.groupBy(_.destClient).foreach { tuple =>
+            val client = tuple._1
+            val timeout = 5000.millis
+            val future = client.actor.ask(GetBottleNeck(tuple._1.host))(timeout)
+            val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
+
+            // update bottleneck of every flow
+            for (flow <- tuple._2) {
+
+              cf.updateFlowBottleneck(flow.getFlowId(), bdRes.toDouble)
+            }
+          }
+        } catch {
+          case e: Exception =>
+            logError("DNBD: Coflow" + cf.id + " getting bottleneck failed")
+        }
+      }
+      tempCoflow
     }
 
     /** 
@@ -591,5 +627,6 @@ private[varys] object Master {
         throw new VarysException("Invalid master URL: " + varysUrl)
     }
   }
+
 
 }

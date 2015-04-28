@@ -32,6 +32,15 @@ class DNBD (
     }
   }
 
+  class getRemainningBWTask(sender: ActorRef) extends Runnable {
+    val sender_ = sender
+    override def run: Unit = {
+      val bd = new Bandwidth(interface)
+      val transRate = bd.readTx()
+      sender_ ! bandwidth - transRate
+    }
+  }
+
 
   override def receive = {
     case GetBottleNeck(host) =>
@@ -39,8 +48,9 @@ class DNBD (
       val start = new Thread(new sendTask(sender, host))
       start.run()
 
-    case UpdateBandwidth(bw) =>
-      bandwidth = bw
+    case GetRemainningBW =>
+      val start = new Thread(new getRemainningBWTask(sender))
+      start.run()
 
     case StartServer =>
       if (!isStart) {
@@ -59,7 +69,7 @@ class DNBD (
   override def preStart(): Unit = {
     val bd = new Bandwidth(interface)
     bandwidth = bd.getBW()
-    logInfo("DNBD bandwidth of host is: %d B/S".format(bandwidth))
+    logInfo("DNBD bandwidth of host is: %d bps".format(bandwidth))
   }
 
 
@@ -84,9 +94,11 @@ class DNBD (
       s.receive(recvPacket)
       val buf = new String(recvPacket.getData)
       val bwPattern = "[0-9]+".r
+
+      //convert to int
       val size = bwPattern.findFirstIn(buf).getOrElse(0).toString.toInt
 
-      logInfo("DNBD bottleneck of Network: %d".format(size))
+      logInfo("DNBD bottleneck of Network: %d bps".format(size))
       return size
     } catch {
       case e: Exception => e.printStackTrace()
@@ -94,6 +106,7 @@ class DNBD (
     }
 
   }
+
 
   def bind(port: Int): Boolean = {
     logInfo("DNBD Server is listening at : %d".format(port))
@@ -146,7 +159,7 @@ class DNBD (
       //println(rx1Str)
       rx = stringMinus(rx1, rx0) * 10
       //println(rx)
-      return rx
+      return rx * 8
     }
 
     def readTx(): Int = {
@@ -162,7 +175,7 @@ class DNBD (
       //println(rx1Str)
       tx = stringMinus(tx1, tx0) * 10
       //println(tx)
-      return tx
+      return tx * 8
     }
 
     def getBW(): Int = {
@@ -175,7 +188,7 @@ class DNBD (
       for (s <- lines if s.contains("Speed")) bwStr = s
       val bwPattern = "[0-9]+".r
       val bw = bwPattern.findFirstIn(bwStr).getOrElse(0).toString.toInt
-      val ret = bw / 8 * 1024 * 1024
+      val ret = bw * 1024 * 1024
       //println(ret)
       ret
 

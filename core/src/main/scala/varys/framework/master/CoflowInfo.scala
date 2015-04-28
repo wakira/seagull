@@ -69,6 +69,16 @@ private[varys] class CoflowInfo(
     if (ret == null) None else Some(ret)
   }
 
+  //DNBD update bottleneck in FlowInfo
+  def updateFlowBottleneck(flowId: String, bottleneck: Double): Unit = {
+    if (contains(flowId)) {
+      val newFlowInfo = idToFlow.get(flowId)
+      newFlowInfo.bottleneck = bottleneck
+      idToFlow.replace(flowId, newFlowInfo)
+    }
+
+  }
+
   def contains(flowId: String) = idToFlow.containsKey(flowId)
 
   /**
