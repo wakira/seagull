@@ -11,4 +11,7 @@ if [ "$VARYS_PUBLIC_DNS" = "" ]; then
     fi
 fi
 
+SCALA_HOME="/home/hduser/scala/scala-2.9.3"
+export SCALA_HOME
+
 "$bin"/varys-daemon.sh start varys.framework.slave.Slave $1
