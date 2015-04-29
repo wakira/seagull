@@ -552,6 +552,7 @@ private[varys] class Master(
     //DNBD update bottleneck of every flow in active coflow before scheduling
     def calFlowBottleneck(activeCoflow: ArrayBuffer[CoflowInfo]): ArrayBuffer[CoflowInfo] = {
       val tempCoflow = activeCoflow
+      val timeout = 500.millis
 
       //val bottlneckMap = new HashMap[String, String]()
       for (cf <- tempCoflow) {
@@ -559,7 +560,6 @@ private[varys] class Master(
             //val client = tuple._1
 
             //TODO find a more elegant way
-            val timeout = 5000.millis
             for (f <- tuple._2) {
               if (!idToClient.containsKey(f.getSourceClientId())) {
                 logError("Master calculate flow bottleneck error!! Client %s doesn't exists!!!".format(f.getSourceClientId()))
@@ -588,22 +588,59 @@ private[varys] class Master(
     //
     def calSourceBpsFree(activeCoflow: ArrayBuffer[CoflowInfo]): HashMap[String, Double] = {
       val sBpsFree = new HashMap[String, Double]()
+      val timeout = 500.millis
+
+      //TODO may block here, find a better way
       for (cf <- activeCoflow) {
         //get remaining tx bandwidth from sources
-        try {
-          cf.getFlows.groupBy(_.source).foreach { tuple =>
-            val client = tuple._1
-            if (!sBpsFree.contains(client)) {
-
+        cf.getFlows.groupBy(_.getSourceClientId()).foreach { tuple =>
+          if (!idToClient.containsKey(tuple._1)) {
+            logError("Master get source bandwidth error!! Client %s doesn't exists!!!".format(tuple._1))
+            logError("\tidToClient Keys: " + idToClient.keys().foreach(println))
+            logError("\tidToClient Values: " + idToClient.values())
+          } else {
+            val client = idToClient.get(tuple._1)
+            if (!sBpsFree.contains(client.host)) {
+              try {
+                val future = client.actor.ask(GetRemainingTX)(timeout)
+                val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
+                sBpsFree(client.host) = bdRes.toDouble
+              }
             }
           }
+
         }
       }
+      logInfo("DNBD: Master gets all remaining bandwidth of sources:" + sBpsFree.values)
       sBpsFree
     }
 
     def calDestinationBpsFree(activeCoflow: ArrayBuffer[CoflowInfo]): HashMap[String, Double] = {
       val dBpsFree = new HashMap[String, Double]()
+      val timeout = 500.millis
+
+      //TODO may block here, find a better way
+      for (cf <- activeCoflow) {
+        //get remaining tx bandwidth from sources
+        cf.getFlows.groupBy(_.destClient).foreach { tuple =>
+          if (!idToClient.containsKey(tuple._1.id)) {
+            logError("Master get destination bandwidth error!! Client %s doesn't exists!!!".format(tuple._1.id))
+            logError("\tidToClient Keys: " + idToClient.keys().foreach(println))
+            logError("\tidToClient Values: " + idToClient.values())
+          } else {
+            val client = tuple._1
+            if (!dBpsFree.contains(client.host)) {
+              try {
+                val future = client.actor.ask(GetRemainingRX)(timeout)
+                val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
+                dBpsFree(client.host) = bdRes.toDouble
+              }
+            }
+          }
+
+        }
+      }
+      logInfo("DNBD: Master gets all remaining bandwidth of destinations: " + dBpsFree.values)
       dBpsFree
     }
 

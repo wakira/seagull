@@ -25,10 +25,10 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
     var sortedCoflows = getOrderedCoflows(schedulerInput.activeCoflows)
 
     // STEP 2: Perform WSS + Backfilling
-    val sBpsFree = new HashMap[String, Double]().withDefaultValue(NIC_BitPS)
-    val rBpsFree = new HashMap[String, Double]().withDefaultValue(NIC_BitPS)
-    //val sBpsFree = schedulerInput.sBpsFree
-    //val rBpsFree = schedulerInput.dBpsFree
+    //val sBpsFree = new HashMap[String, Double]().withDefaultValue(NIC_BitPS)
+    //val rBpsFree = new HashMap[String, Double]().withDefaultValue(NIC_BitPS)
+    val sBpsFree = schedulerInput.sBpsFree
+    val rBpsFree = schedulerInput.dBpsFree
 
     //test NIC_BitPs
     //times = times + 1
