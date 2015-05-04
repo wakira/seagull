@@ -22,6 +22,9 @@ trait Logging {
         className = className.substring(0, className.length - 1)
       }
       log_ = LoggerFactory.getLogger(className)
+
+      //for test
+      //log_.info("Start!!!!!\n")
     }
     return log_
   }
