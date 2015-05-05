@@ -605,7 +605,7 @@ private[varys] class Master(
                 val future = client.actor.ask(GetRemainingTX)(timeout)
                 val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
                 sBpsFree(client.host) = bdRes.toDouble
-                logDebug("DNBD: Remaining tx of " + client.host + " is " + bdRes.toDouble)
+                logInfo("DNBD: Remaining tx of " + client.host + " is " + bdRes.toDouble)
               }
             }
           }
@@ -635,7 +635,7 @@ private[varys] class Master(
                 val future = client.actor.ask(GetRemainingRX)(timeout)
                 val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
                 dBpsFree(client.host) = bdRes.toDouble
-                logDebug("DNBD: Remaining rx of " + client.host + " is " + bdRes.toDouble)
+                logInfo("DNBD: Remaining rx of " + client.host + " is " + bdRes.toDouble)
               }
             }
           }
