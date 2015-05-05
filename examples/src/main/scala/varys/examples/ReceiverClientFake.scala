@@ -37,8 +37,10 @@ private[varys] object ReceiverClientFake {
     Thread.sleep(5000)
     
     println("Trying to retrieve " + DATA_NAME)
+    val st = System.currentTimeMillis()
     client.getFake(DATA_NAME, coflowId)
-    println("Got " + DATA_NAME + ". Now waiting to die.")
+    val interval = System.currentTimeMillis() - st
+    println("Got " + DATA_NAME + ". Now waiting to die. It takes " + interval + " ms")
     
     client.awaitTermination()
   }
