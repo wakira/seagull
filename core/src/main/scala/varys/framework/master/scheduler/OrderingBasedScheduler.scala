@@ -51,7 +51,7 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
           //DNBD: use bottleneck of every flow instead
           //val minFree = math.min(sBpsFree(src), rBpsFree(dst))
           val minFree = flowInfo.bottleneck
-          logDebug("Flow %s --> %s bottlneck: %f".format(flowInfo.source, flowInfo.destClient.host, flowInfo.bottleneck))
+          logInfo("Flow %s --> %s bottlneck: %f".format(flowInfo.source, flowInfo.destClient.host, flowInfo.bottleneck))
           if (minFree > 0.0) {
             flowInfo.currentBps = calcFlowRate(flowInfo, cf, minFree)
             if (math.abs(flowInfo.currentBps) < 1e-6) {
@@ -71,11 +71,25 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
         }
 
         // Remove capacity from ALL sources and destination for this coflow
+        // frankfzw: It's not right here
+        /*
         for (sl <- schedulerInput.activeSlaves) {
           val host = sl.host
           sBpsFree(host) = sBpsFree(host) - sUsed(host)
           rBpsFree(host) = rBpsFree(host) - rUsed(host)
         }
+        */
+
+        // frankfzw: change the remaining bandwidth here
+        for (sl <- schedulerInput.activeSlaves) {
+          val host = sl.host
+          if (sUsed.contains(host))
+            sBpsFree(host) = sBpsFree(host) - sUsed(host)
+          if (rUsed.contains(host))
+            rBpsFree(host) = rBpsFree(host) - rUsed(host)
+
+        }
+
       }
     }
 
