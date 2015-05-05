@@ -12,7 +12,6 @@ import java.util.Date
 import java.util.concurrent.atomic._
 import java.util.concurrent.ConcurrentHashMap
 
-import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.collection.JavaConversions._
 
@@ -500,13 +499,16 @@ private[varys] class Master(
         (x.curState == CoflowState.READY || x.curState == CoflowState.RUNNING))
 
       //DNBD get the real bottleneck here of the network
-      val realActiveCoflows = calFlowBottleneck(activeCoflows)
+      //val realActiveCoflows = calFlowBottleneck(activeCoflows)
       //TODO get the real bandwidth of all source and destination
-      val sBpsFree = calSourceBpsFree(activeCoflows)
-      val dBpsFree = calDestinationBpsFree(activeCoflows)
+      //val sBpsFree = calSourceBpsFree(activeCoflows)
+      //val dBpsFree = calDestinationBpsFree(activeCoflows)
+      val sBpsFree = new scala.collection.mutable.HashMap[String, Double]()
+      val dBpsFree = new scala.collection.mutable.HashMap[String, Double]()
 
       val activeSlaves = idToSlave.values.toBuffer.asInstanceOf[ArrayBuffer[SlaveInfo]]
-      val schedulerOutput = coflowScheduler.schedule(SchedulerInput(realActiveCoflows, activeSlaves, sBpsFree, dBpsFree))
+      val schedulerOutput = coflowScheduler.schedule(SchedulerInput(activeCoflows, activeSlaves, sBpsFree, dBpsFree))
+      //val schedulerOutput = coflowScheduler.schedule(SchedulerInput(realActiveCoflows, activeSlaves, sBpsFree, dBpsFree))
 
       val step12Dur = now - st
       st = now

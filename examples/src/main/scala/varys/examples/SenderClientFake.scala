@@ -34,7 +34,7 @@ private[varys] object SenderClientFake {
     client.start()
 
     //start DNBD
-    client.startDNBD(5678, "p3p1")
+    //client.startDNBD(5678, "p3p1")
 
     val desc = new CoflowDescription("DEFAULT", CoflowType.DEFAULT, 1, LEN_BYTES)
     val coflowId = client.registerCoflow(desc)
