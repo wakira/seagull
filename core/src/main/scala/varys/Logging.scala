@@ -21,6 +21,7 @@ trait Logging {
       if (className.endsWith("$")) {
         className = className.substring(0, className.length - 1)
       }
+      println("Logging: className %s!!!!!!!".format(className))
       log_ = LoggerFactory.getLogger(className)
     }
     return log_
