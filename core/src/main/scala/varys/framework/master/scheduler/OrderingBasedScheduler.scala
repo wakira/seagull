@@ -30,6 +30,14 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
     val sBpsFree = schedulerInput.sBpsFree
     val rBpsFree = schedulerInput.dBpsFree
 
+    val sUsed = new HashMap[String, Double]()
+    val rUsed = new HashMap[String, Double]()
+    sBpsFree.foreach {
+      keyVal =>
+        sUsed.put(keyVal._1, 0.0)
+        rUsed.put(keyVal._1, 0.0)
+    }
+
     //test NIC_BitPs
     //times = times + 1
     //println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!%d:\t%f".format(times, NIC_BitPS))
@@ -41,16 +49,15 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
       if (markForRejection(cf, sBpsFree, rBpsFree)) {
         markedForRejection += cf
       } else {
-        val sUsed = new HashMap[String, Double]().withDefaultValue(0.0)
-        val rUsed = new HashMap[String, Double]().withDefaultValue(0.0)
+
 
         for (flowInfo <- cf.getFlows) {
           val src = flowInfo.source
           val dst = flowInfo.destClient.host
 
           //DNBD: use bottleneck of every flow instead
-          //val minFree = math.min(sBpsFree(src), rBpsFree(dst))
-          val minFree = flowInfo.bottleneck
+          var minFree = math.min(sBpsFree(src), rBpsFree(dst))
+          minFree = math.min(flowInfo.bottleneck, minFree)
           logInfo("Flow %s --> %s bottlneck: %f".format(flowInfo.source, flowInfo.destClient.host, flowInfo.bottleneck))
           if (minFree > 0.0) {
             flowInfo.currentBps = calcFlowRate(flowInfo, cf, minFree)
@@ -101,11 +108,15 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
         val src = flowInfo.source
         val dst = flowInfo.destClient.host
 
-        val minFree = math.min(sBpsFree(src), rBpsFree(dst))
+        var minFree = math.min(sBpsFree(src), rBpsFree(dst))
+        minFree = math.min(flowInfo.bottleneck, minFree)
         if (minFree > 0.0) {
           flowInfo.currentBps += minFree
           sBpsFree(src) = sBpsFree(src) - minFree
           rBpsFree(dst) = rBpsFree(dst) - minFree
+
+          sUsed(src) = sUsed(src) + minFree
+          rUsed(dst) = rUsed(dst) + minFree
         }
         
         totalBps += flowInfo.currentBps
@@ -114,7 +125,7 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
       cf.setCurrentAllocation(totalBps)
     }
 
-    SchedulerOutput(sortedCoflows, markedForRejection)
+    SchedulerOutput(sortedCoflows, markedForRejection, sUsed, rUsed )
   }
 
   /**

@@ -57,6 +57,11 @@ private[varys] class Master(
 
   val webUiStarted = new AtomicBoolean(false)
 
+  //DNBD cache
+  val slavesTX = new ConcurrentHashMap[String, Double]()
+  val slavesRX = new ConcurrentHashMap[String, Double]()
+  val fabric = new ConcurrentHashMap[String, ConcurrentHashMap[String, Double]]()
+
   // ExecutionContext for Futures
   implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
 
@@ -315,7 +320,29 @@ private[varys] class Master(
       }
 
       case ScheduleRequest => {
+        if (slavesTX.size() == 0) {
+          val NIC_BitPS = 1024 * 1048576.0
+          idToClient.foreach {
+            keyVal =>
+              slavesRX.put(keyVal._2.host, NIC_BitPS)
+              slavesTX.put(keyVal._2.host, NIC_BitPS)
+              val temp = new ConcurrentHashMap[String, Double]()
+              idToClient.foreach {
+                secondKV =>
+                  temp.put(secondKV._1, NIC_BitPS)
+              }
+              fabric.put(keyVal._1, temp)
+          }
+        }
         schedule()
+        //DNBD Update cache here!!!
+        val start = new Thread (new Runnable {
+          override def run(): Unit = {
+            updateBpsFree()
+            updateFabric()
+          }
+        })
+        start.run()
       }
     }
 
@@ -531,6 +558,7 @@ private[varys] class Master(
       logInfo("END_NEW_SCHEDULE in " + (step12Dur + step12Dur + step3Dur) + " = (" + step12Dur + 
         "+" + step12Dur + "+" + step3Dur + ") milliseconds")
 
+
       // Remove rejected coflows
       for (cf <- schedulerOutput.markedForRejection) {
         val rejectMessage = "Cannot meet the specified deadline of " + cf.desc.deadlineMillis + 
@@ -552,7 +580,7 @@ private[varys] class Master(
     //DNBD update bottleneck of every flow in active coflow before scheduling
     def calFlowBottleneck(activeCoflow: ArrayBuffer[CoflowInfo]): ArrayBuffer[CoflowInfo] = {
       val tempCoflow = activeCoflow
-      val timeout = 500.millis
+      //val timeout = 500.millis
 
       //val bottlneckMap = new HashMap[String, String]()
       for (cf <- tempCoflow) {
@@ -561,16 +589,20 @@ private[varys] class Master(
 
             //TODO find a more elegant way
             for (f <- tuple._2) {
-              if (!idToClient.containsKey(f.getSourceClientId())) {
-                logError("Master calculate flow bottleneck error!! Client %s doesn't exists!!!".format(f.getSourceClientId()))
+              if ((!idToClient.containsKey(f.getSourceClientId())) || (!idToClient.containsKey(f.destClient.id))) {
+                logError("Master calculate flow bottleneck error!! Client doesn't exists!!!")
                 logError("\tidToClient Keys: " + idToClient.keys().foreach(println))
                 logError("\tidToClient Values: " + idToClient.values())
               } else {
                 try {
-                  val sourceClient = idToClient.get(f.getSourceClientId())
-                  val future = sourceClient.actor.ask(GetBottleNeck(tuple._1.host))(timeout)
-                  val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
-                  cf.updateFlowBottleneck(f.getFlowId(), bdRes.toDouble)
+                  //val sourceClient = idToClient.get(f.getSourceClientId())
+                  //val future = sourceClient.actor.ask(GetBottleNeck(tuple._1.host))(timeout)
+                  var bdRes = fabric.get(f.getSourceClientId()).get(tuple._1.id)
+                  bdRes += f.currentBps
+                  fabric(f.getSourceClientId()).put(tuple._1.id, bdRes)
+                  slavesTX(f.source) += f.currentBps
+                  slavesRX(f.destClient.host) += f.currentBps
+                  cf.updateFlowBottleneck(f.getFlowId(), bdRes)
                 } catch {
                   case e: Exception =>
                     logError("DNBD: Coflow" + cf.id + " getting bottleneck failed. Details: Source Client ID " + f.getSourceClientId() + " Flow ID " + f.getFlowId())
@@ -588,36 +620,28 @@ private[varys] class Master(
     //
     def calSourceBpsFree(activeCoflow: ArrayBuffer[CoflowInfo]): HashMap[String, Double] = {
       val sBpsFree = new HashMap[String, Double]()
-      val timeout = 500.millis
+      //val timeout = 500.millis
 
       //TODO may block here, find a better way
-      for (cf <- activeCoflow) {
-        //get remaining tx bandwidth from sources
-        cf.getFlows.groupBy(_.getSourceClientId()).foreach { tuple =>
-          if (!idToClient.containsKey(tuple._1)) {
-            logError("Master get source bandwidth error!! Client %s doesn't exists!!!".format(tuple._1))
-            logError("\tidToClient Keys: " + idToClient.keys().foreach(println))
-            logError("\tidToClient Values: " + idToClient.values())
-          } else {
-            val client = idToClient.get(tuple._1)
-            if (!sBpsFree.contains(client.host)) {
-              try {
-                val future = client.actor.ask(GetRemainingTX)(timeout)
-                val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
-                sBpsFree(client.host) = bdRes.toDouble
-                logInfo("DNBD: Remaining tx of " + client.host + " is " + bdRes.toDouble)
-              }
-            }
-          }
-
-        }
+      slavesTX.foreach{
+        keyVal =>
+          sBpsFree(keyVal._1) = keyVal._2
       }
-      logInfo("DNBD: Master gets all remaining bandwidth of sources:" + sBpsFree.values)
+
+      logInfo("DNBD: Master gets all remaining bandwidth of source: " + sBpsFree.values)
       sBpsFree
     }
 
     def calDestinationBpsFree(activeCoflow: ArrayBuffer[CoflowInfo]): HashMap[String, Double] = {
       val dBpsFree = new HashMap[String, Double]()
+
+      slavesRX.foreach{
+        keyVal =>
+          dBpsFree(keyVal._1) = keyVal._2
+      }
+
+      logInfo("DNBD: Master gets all remaining bandwidth of destinations: " + dBpsFree.values)
+      /*
       val timeout = 500.millis
 
       //TODO may block here, find a better way
@@ -643,8 +667,55 @@ private[varys] class Master(
         }
       }
       logInfo("DNBD: Master gets all remaining bandwidth of destinations: " + dBpsFree.values)
+      */
       dBpsFree
     }
+
+    def updateBpsFree(): Unit = {
+      val timeout = 500.millis
+      idToClient.foreach {
+        keyVal =>
+          try {
+            val future = keyVal._2.actor.ask(GetRemainingTX)(timeout)
+            val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
+            slavesTX.put(keyVal._2.host, bdRes.toDouble)
+          } catch {
+            case e: Exception =>
+              logError("DNBD: Calculate Source TX timeout !!!")
+          }
+
+          try {
+            val future = keyVal._2.actor.ask(GetRemainingRX)(timeout)
+            val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
+            slavesRX.put(keyVal._2.host, bdRes.toDouble)
+          } catch {
+            case e: Exception =>
+              logError("DNBD: Calculate Source RX timeout !!!")
+          }
+
+      }
+    }
+
+    def updateFabric(): Unit = {
+      val timeout = 500.millis
+      idToClient.foreach{
+        keyVal =>
+          idToClient.foreach{
+            secondKV =>
+              if (secondKV._1 != keyVal._1) {
+                try {
+                  val future = keyVal._2.actor.ask(GetBottleNeck(secondKV._2.host))(timeout)
+                  val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
+                  fabric.get(keyVal._1).update(secondKV._1, bdRes.toDouble)
+                } catch {
+                  case e: Exception =>
+                    logError("DNBD update time out: from" + keyVal._1 + " to " + secondKV._1)
+                }
+              }
+          }
+      }
+    }
+
 
     /** 
      * Generate a new coflow ID given a coflow's submission date 
