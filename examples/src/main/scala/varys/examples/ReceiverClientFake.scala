@@ -5,7 +5,6 @@ import varys.{Logging, Utils}
 import varys.framework.client._
 import varys.framework._
 
-
 private[varys] object ReceiverClientFake {
 
   class TestListener extends ClientListener with Logging {
@@ -38,10 +37,8 @@ private[varys] object ReceiverClientFake {
     Thread.sleep(5000)
     
     println("Trying to retrieve " + DATA_NAME)
-    val st = System.currentTimeMillis
     client.getFake(DATA_NAME, coflowId)
-    val interval = System.currentTimeMillis() - st
-    println("Got " + DATA_NAME + ". Now waiting to die. It takes " + interval + " ms")
+    println("Got " + DATA_NAME + ". Now waiting to die.")
     
     client.awaitTermination()
   }
