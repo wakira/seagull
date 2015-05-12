@@ -34,7 +34,7 @@ private[varys] object ReceiverClientFake {
     //DNBD start for test
     client.startDNBD(5678, "p3p1")
     
-    Thread.sleep(5000)
+    Thread.sleep(20000)
     
     println("Trying to retrieve " + DATA_NAME)
     val st = System.currentTimeMillis()
