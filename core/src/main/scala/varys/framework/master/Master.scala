@@ -321,7 +321,7 @@ private[varys] class Master(
 
       case ScheduleRequest => {
         if (slavesTX.size() == 0) {
-          val NIC_BitPS = 1024 * 1048576.0
+          val NIC_BitPS = 1024 * 1048576.0 * 0.5
           idToClient.foreach {
             keyVal =>
               slavesRX.put(keyVal._2.host, NIC_BitPS)
@@ -338,8 +338,8 @@ private[varys] class Master(
         //DNBD Update cache here!!!
         val start = new Thread (new Runnable {
           override def run(): Unit = {
-            updateBpsFree()
-            updateFabric()
+            updateBpsFree(0.5)
+            updateFabric(0.5)
           }
         })
         start.run()
@@ -671,14 +671,14 @@ private[varys] class Master(
       dBpsFree
     }
 
-    def updateBpsFree(): Unit = {
+    def updateBpsFree(rate: Double): Unit = {
       val timeout = 500.millis
       idToClient.foreach {
         keyVal =>
           try {
             val future = keyVal._2.actor.ask(GetRemainingTX)(timeout)
             val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
-            slavesTX.put(keyVal._2.host, bdRes.toDouble)
+            slavesTX.put(keyVal._2.host, bdRes.toDouble * rate)
           } catch {
             case e: Exception =>
               logError("DNBD: Calculate Source TX timeout !!!")
@@ -687,7 +687,7 @@ private[varys] class Master(
           try {
             val future = keyVal._2.actor.ask(GetRemainingRX)(timeout)
             val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
-            slavesRX.put(keyVal._2.host, bdRes.toDouble)
+            slavesRX.put(keyVal._2.host, bdRes.toDouble * rate)
           } catch {
             case e: Exception =>
               logError("DNBD: Calculate Source RX timeout !!!")
@@ -696,7 +696,7 @@ private[varys] class Master(
       }
     }
 
-    def updateFabric(): Unit = {
+    def updateFabric(rate: Double): Unit = {
       val timeout = 500.millis
       idToClient.foreach{
         keyVal =>
@@ -706,7 +706,7 @@ private[varys] class Master(
                 try {
                   val future = keyVal._2.actor.ask(GetBottleNeck(secondKV._2.host))(timeout)
                   val bdRes = akka.dispatch.Await.result(future, timeout).asInstanceOf[Int]
-                  fabric.get(keyVal._1).update(secondKV._1, bdRes.toDouble)
+                  fabric.get(keyVal._1).update(secondKV._1, bdRes.toDouble * rate)
                 } catch {
                   case e: Exception =>
                     logError("DNBD update time out: from" + keyVal._1 + " to " + secondKV._1)

@@ -100,9 +100,11 @@ private[varys] class ThrottledInputStream(
   }
 
   def setNewRate(newMaxBitPerSec: Double) {
+    //maxbytespersec = (newmaxbitpersec / 8).tolong
     maxBytesPerSec = (newMaxBitPerSec / 8).toLong
     mBPSLock.synchronized {
       logTrace(this + " newMaxBitPerSec = " + newMaxBitPerSec)
+      //logInfo(this + " newMaxBitPerSec = " + newMaxBitPerSec)
       mBPSLock.notifyAll()
     }
   }
