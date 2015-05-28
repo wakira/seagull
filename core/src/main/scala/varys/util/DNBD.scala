@@ -119,7 +119,7 @@ class DNBD (
 
 
   def bind(port: Int): Boolean = {
-    logInfo("DNBD Server is listening at : %d".format(port))
+    logInfo("DNBD Server is listening at %s : %d".format(interface, port))
     val serverSock = new DatagramSocket(port)
     val recvBuff = new Array[Byte](1024)
     while (true) {

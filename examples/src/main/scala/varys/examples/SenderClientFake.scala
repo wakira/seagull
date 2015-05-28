@@ -25,25 +25,35 @@ private[varys] object SenderClientFake {
     }
 
     val url = args(0)
-    val DATA_NAME = if (args.length > 1) args(1) else "DATA"
 
-    val LEN_BYTES = 1010101L
+    val DATA_NAME = if (args.length > 1) args(1) else "DATA"
+    val LEN_BYTES = 1010101010L
 
     val listener = new TestListener
     val client = new VarysClient("SenderClientFake", url, listener)
     client.start()
 
     //start DNBD
-    client.startDNBD()
+    client.startDNBD(5678, "p3p1")
 
-    val desc = new CoflowDescription("DEFAULT", CoflowType.DEFAULT, 1, LEN_BYTES)
-    val coflowId = client.registerCoflow(desc)
-    
-    val SLEEP_MS1 = 5000    
-    println("Registered coflow " + coflowId + ". Now sleeping for " + SLEEP_MS1 + " milliseconds.")
-    Thread.sleep(SLEEP_MS1)
-    
-    client.putFake(DATA_NAME, coflowId, LEN_BYTES, 1)
+    for (i <- 1 to 4) {
+
+      val desc = new CoflowDescription("DEFAULT", CoflowType.DEFAULT, 1, LEN_BYTES)
+      val coflowId = client.registerCoflow(desc)
+
+      val SLEEP_MS1 = 5000
+      println("Registered coflow " + coflowId + ". Now sleeping for " + SLEEP_MS1 + " milliseconds.")
+      Thread.sleep(SLEEP_MS1)
+
+      client.putFake(DATA_NAME, coflowId, LEN_BYTES, 1)
+
+      Thread.sleep(SLEEP_MS1)
+    }
+
+
+
+
+
     println("Put a fake piece of data of " + LEN_BYTES + " bytes. Now waiting to die.")
     
     // client.unregisterCoflow(coflowId)

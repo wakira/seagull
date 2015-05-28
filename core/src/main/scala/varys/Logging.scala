@@ -23,6 +23,9 @@ trait Logging {
       }
       println("Logging: className %s!!!!!!!".format(className))
       log_ = LoggerFactory.getLogger(className)
+
+      //for test
+      //log_.info("Start!!!!!\n")
     }
     return log_
   }

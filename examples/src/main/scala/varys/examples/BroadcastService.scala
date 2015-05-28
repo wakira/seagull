@@ -183,6 +183,8 @@ private[varys] object BroadcastSender extends Logging {
 
     //TODO let the client know the name of interface
     client.start()
+    client.startDNBD(5678, "p3p1")
+    Thread.sleep(5000)
     
     val desc = new CoflowDescription(
       "Broadcast-" + fileName, 
@@ -359,15 +361,21 @@ private[varys] object BroadcastReceiver extends Logging {
     val listener = new TestListener
     val client = new VarysClient("BroadcastReceiver", url, listener)
     client.start()
+    client.startDNBD(5678, "p3p1")
+
+    Thread.sleep(50000)
+
     
     logInfo("About to receive " + bInfo + " with " + randomOffsets.size + " blocks.")
     val futureList = Future.traverse(randomOffsets)(offset => Future {
       val blockName = origFileName + "-" + offset
       logInfo("Getting " + blockName + " from coflow " + bInfo.coflowId)
-      
+      val st = System.currentTimeMillis()
       val bArr = client.getFile(blockName, bInfo.coflowId)
+      val interval = System.currentTimeMillis() - st
       logInfo("Got " + blockName + " of " + bArr.length + " bytes. Writing to " + localPathToFile + 
         " at " + offset)
+      logInfo("It takes " + interval + " ms")
 
       FILE.synchronized {
         FILE.seek(offset)

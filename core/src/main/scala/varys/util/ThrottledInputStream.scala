@@ -107,9 +107,11 @@ private[varys] class ThrottledInputStream(
   }
 
   def setNewRate(newMaxBitPerSec: Double) {
+    //maxbytespersec = (newmaxbitpersec / 8).tolong
     maxBytesPerSec = (newMaxBitPerSec / 8).toLong
     mBPSLock.synchronized {
       logTrace(this + " newMaxBitPerSec = " + newMaxBitPerSec)
+      //logInfo(this + " newMaxBitPerSec = " + newMaxBitPerSec)
       mBPSLock.notifyAll()
     }
   }
@@ -158,13 +160,21 @@ private[varys] class ThrottledInputStream(
 
   class ECNReceiver(sender: ActorRef) extends Actor with Logging {
     val _sender = sender
+    var f = 0.0
     override def receive = {
       case StartECN =>
         _sender ! StartECN
-      case UpdateRate =>
+      case UpdateRate(fraction) =>
         //TODO update maxBytesPerSec
+        f = 0.5 * f + 0.5 * fraction
+        if (f > 0.0001)
+          maxBytesPerSec = (maxBytesPerSec * (1 - 0.5 * f)).toLong
+        else
+          maxBytesPerSec = maxBytesPerSec + 1
       case _ =>
         logError("ECNReceiver receive something wrong!")
     }
   }
+
 }
+

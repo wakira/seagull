@@ -14,6 +14,6 @@ bin=`cd "$bin"; pwd`
 "$bin"/stop-master.sh
 
 # Clear log, added by frank
-cd ./logs
-echo "Clear logs in" `pwd`
-rm *
+#cd ./logs
+#echo "Clear logs in" `pwd`
+#rm *

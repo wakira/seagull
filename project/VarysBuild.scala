@@ -34,6 +34,7 @@ object VarysBuild extends Build {
     libraryDependencies ++= Seq(
         "org.eclipse.jetty" % "jetty-server"   % jettyVersion
     )
+    
   )
 
   val jettyVersion = "8.1.14.v20131031"
@@ -69,6 +70,10 @@ object VarysBuild extends Build {
       // akka-kryo-serialization has been added in an hackish way. We've compiled locally, then uploaded the jar to my website.
       "akka-kryo-serialization" % "akka-kryo-serialization" % "0.2-SNAPSHOT" from "http://mosharaf.com/akka-kryo-serialization-0.2-SNAPSHOT.jar"
     ),
+    
+    //add jnetpcap to project
+    //mark by frankfzw
+    unmanagedJars in Compile += file("lib/jnetpcap.jar"),
     
     // Collect jar files to be extracted from managed jar dependencies
     jarsToExtract <<= (classpathTypes, update) map { (ct, up) =>

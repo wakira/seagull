@@ -5,7 +5,7 @@ import varys.{Logging, Utils}
 import varys.framework.client._
 import varys.framework._
 
-private[varys] object ReceiverClientFake {
+private[varys] object ReceiverClientFake extends Logging {
 
   class TestListener extends ClientListener with Logging {
     def connected(id: String) {
@@ -32,13 +32,16 @@ private[varys] object ReceiverClientFake {
     val client = new VarysClient("ReceiverClientFake", url, listener)
     client.start()
     //DNBD start for test
-    client.startDNBD()
+    client.startDNBD(5678, "p3p1")
     
-    Thread.sleep(5000)
+    Thread.sleep(20000)
     
     println("Trying to retrieve " + DATA_NAME)
+    val st = System.currentTimeMillis()
     client.getFake(DATA_NAME, coflowId)
-    println("Got " + DATA_NAME + ". Now waiting to die.")
+    val interval = System.currentTimeMillis() - st
+    println("Got " + DATA_NAME + ". Now waiting to die. It takes " + interval + " ms")
+    //logInfo("Got " + DATA_NAME + ". Now waiting to die. It takes " + interval + " ms")
     
     client.awaitTermination()
   }

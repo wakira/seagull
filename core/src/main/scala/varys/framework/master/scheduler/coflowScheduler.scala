@@ -30,5 +30,7 @@ case class SchedulerInput(
  */
 case class SchedulerOutput(
     scheduledCoflows: ArrayBuffer[CoflowInfo],
-    markedForRejection: ArrayBuffer[CoflowInfo]
+    markedForRejection: ArrayBuffer[CoflowInfo],
+    sBpsUsed: HashMap[String, Double],
+    dBpsUsed: HashMap[String, Double]
 )
