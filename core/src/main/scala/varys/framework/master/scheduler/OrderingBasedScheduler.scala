@@ -100,6 +100,7 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
       cf.setCurrentAllocation(totalBps)
     }
 
+
     SchedulerOutput(sortedCoflows, markedForRejection)
   }
 

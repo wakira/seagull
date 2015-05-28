@@ -21,7 +21,9 @@ package varys.util
 import java.io.IOException
 import java.io.InputStream
 
+import akka.actor._
 import varys.Logging
+import varys.framework.{StartECN, UpdateRate}
 
 /**
  * The ThrottleInputStream provides bandwidth throttling on a specified
@@ -48,6 +50,11 @@ private[varys] class ThrottledInputStream(
   var totalSleepTime = 0L
 
   val SLEEP_DURATION_MS = 50L
+
+  //frankfzw: actor for ecn work conservation
+  var system: ActorSystem = null
+  var ecnSender: ActorRef = null
+  var ecnReceiver: ActorRef = null
 
   if (maxBytesPerSec < 0) {
     throw new IOException("Bandwidth " + maxBytesPerSec + " is invalid")
@@ -128,5 +135,36 @@ private[varys] class ThrottledInputStream(
       ", bytesPerSec=" + getBytesPerSec +
       ", totalSleepTime=" + totalSleepTime +
       '}';
+  }
+
+  def startWorkConservation(interface: String): Unit = {
+    stopWorkConservation()
+    Thread.sleep(1000)
+    system = ActorSystem("WorkConservation")
+    ecnSender = system.actorOf(Props(new ECN(interface)), name = "ecnSender")
+    ecnReceiver = system.actorOf(Props(new ECNReceiver(ecnSender)), name = "ecnReceiver")
+    ecnReceiver ! StartECN
+
+  }
+
+  def stopWorkConservation(): Unit = {
+    if (ecnSender != null)
+      ecnSender ! PoisonPill
+    if (ecnReceiver != null)
+      ecnReceiver ! PoisonPill
+    if (system != null)
+      system.shutdown()
+  }
+
+  class ECNReceiver(sender: ActorRef) extends Actor with Logging {
+    val _sender = sender
+    override def receive = {
+      case StartECN =>
+        _sender ! StartECN
+      case UpdateRate =>
+        //TODO update maxBytesPerSec
+      case _ =>
+        logError("ECNReceiver receive something wrong!")
+    }
   }
 }

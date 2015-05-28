@@ -46,6 +46,8 @@ class VarysClient(
   var clientId: String = null
   var clientActor: ActorRef = null
 
+  var nicName: String = null
+
 
   //val DNBD_PORT = 5678
 
@@ -266,6 +268,7 @@ class VarysClient(
 
   //start DNBD
   def startDNBD(port: Int = 5678, interface: String = "eth0"): Unit = {
+    nicName = interface
     if (clientActor != null) {
       clientActor ! StartDNBD(port, interface)
     }

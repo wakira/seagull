@@ -210,4 +210,9 @@ private[varys] case class GetBottleNeck(host: String)
 private[varys] case object GetRemainingTX
 private[varys] case object GetRemainingRX
 
+//message for ecn work conservation
+private[varys] case object StartECN
+private[varys] case object StopECN
+private[varys] case class UpdateRate(fraction: Double)
+
 
