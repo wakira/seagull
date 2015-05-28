@@ -5,6 +5,11 @@ Varys provides a simple API that allows data-parallel frameworks to express thei
 
 To learn more, visit <http://varys.net/>
 
+## Pre-building Varys
+Install libpcap on your machine.
+Download jNetPcap from <http://jnetpcap.com/?q=download>
+Create a directory named "lib" in root directory and copy jNetPcap jar to "lib"
+
 ## Building Varys
 Varys is built on `Scala 2.9.3`. To build Varys and example programs using it, run
 
@@ -45,20 +50,20 @@ Varys also comes with several sample programs in the `examples` directory. For e
 
 To run any pair of them (e.g., one creating random coflows) in your local machine, first start Varys by typing
 
-	./bin/start-all.sh
+	sudo ./bin/start-all.sh
 
 Now, go to `http://localhost:16016/` in your browser to find the MASTER_URL.
 
 Next, start the sender and the receiver
 
-	./run varys.examples.SenderClientFake <MASTER_URL>
-	./run varys.examples.ReceiverClientFake <MASTER_URL> COFLOW-000000
+	sudo ./run varys.examples.SenderClientFake <MASTER_URL>
+	sudo ./run varys.examples.ReceiverClientFake <MASTER_URL> COFLOW-000000
 
 This should log statements on the console stating coflow register, transfer, and other events. 
 
 Finally, stop Varys by typing
 
-	./bin/stop-all.sh
+	sudo ./bin/stop-all.sh
 
 While these examples by themselves do not perform any task, they show how a framework might use them (e.g., a mapper being the sender and reducer being the receiver in MapReduce). Note that, we are manually providing the CoflowId (COFLOW-000000) to the reciever, which should be provided by the framework driver (e.g., JobTracker for Hadoop or SparkContext for Spark).
 
