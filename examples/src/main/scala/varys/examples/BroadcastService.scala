@@ -184,6 +184,7 @@ private[varys] object BroadcastSender extends Logging {
     //TODO let the client know the name of interface
     client.start()
     client.startDNBD(5678, "p3p1")
+    Thread.sleep(5000)
     
     val desc = new CoflowDescription(
       "Broadcast-" + fileName, 
@@ -361,6 +362,9 @@ private[varys] object BroadcastReceiver extends Logging {
     val client = new VarysClient("BroadcastReceiver", url, listener)
     client.start()
     client.startDNBD(5678, "p3p1")
+
+    Thread.sleep(50000)
+
     
     logInfo("About to receive " + bInfo + " with " + randomOffsets.size + " blocks.")
     val futureList = Future.traverse(randomOffsets)(offset => Future {

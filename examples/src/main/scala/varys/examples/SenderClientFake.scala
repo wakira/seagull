@@ -27,7 +27,7 @@ private[varys] object SenderClientFake {
     val url = args(0)
 
     val DATA_NAME = if (args.length > 1) args(1) else "DATA"
-    val LEN_BYTES = 1010101L
+    val LEN_BYTES = 1010101010L
 
     val listener = new TestListener
     val client = new VarysClient("SenderClientFake", url, listener)
