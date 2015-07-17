@@ -49,7 +49,8 @@ object VarysBuild extends Build {
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "JBoss Repository" at "http://repository.jboss.org/nexus/content/repositories/releases/",
       "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
-      "Twitter4J Repository" at "http://twitter4j.org/maven2/"
+      "Twitter4J Repository" at "http://twitter4j.org/maven2/",
+      "Akka Repository" at "http://repo.akka.io/repository/"
     ),
 
     libraryDependencies ++= Seq(
