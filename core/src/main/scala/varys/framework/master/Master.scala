@@ -61,6 +61,9 @@ private[varys] class Master(
   val slavesTX = new ConcurrentHashMap[String, Double]()
   val slavesRX = new ConcurrentHashMap[String, Double]()
   val fabric = new ConcurrentHashMap[String, ConcurrentHashMap[String, Double]]()
+  //DNBD thread
+  var DNBDT: Thread = null
+  val NIC_BitPS = 1024 * 1048576.0 * 0.5
 
   // ExecutionContext for Futures
   implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
@@ -104,10 +107,29 @@ private[varys] class Master(
         webUi.start()
       }
       // context.system.scheduler.schedule(0 millis, SLAVE_TIMEOUT millis, self, CheckForSlaveTimeOut)
+
+      //frankfzw: start master of dnbd
+      DNBDT = new Thread (new Runnable {
+        override def run(): Unit = {
+          logInfo("Master of DNBD is working")
+          while (true) {
+            updateBpsFree(0.5)
+            updateFabric(0.5)
+            Thread.sleep(10000)
+          }
+        }
+      })
+      DNBDT.run()
+
     }
 
     override def postStop() {
       webUi.stop()
+
+      //stop DNBDT
+      if (DNBDT != null) {
+        DNBDT.interrupt()
+      }
     }
 
     override def receive = {
@@ -155,6 +177,16 @@ private[varys] class Master(
           
           logInfo("Registered client " + clientName + " with ID " + client.id + " in " + 
             (now - st) + " milliseconds")
+
+          //init the tx and rx with the default value
+          slavesRX.put(client.host, NIC_BitPS)
+          slavesTX.put(client.host, NIC_BitPS)
+          val temp = new ConcurrentHashMap[String, Double]()
+          idToClient.foreach {
+            secondKV =>
+              temp.put(secondKV._1, NIC_BitPS)
+          }
+          fabric.put(client.id, temp)
         } else {
           currentSender ! RegisterClientFailed("No Varys slave at " + host)
         }
@@ -320,29 +352,9 @@ private[varys] class Master(
       }
 
       case ScheduleRequest => {
-        if (slavesTX.size() == 0) {
-          val NIC_BitPS = 1024 * 1048576.0 * 0.5
-          idToClient.foreach {
-            keyVal =>
-              slavesRX.put(keyVal._2.host, NIC_BitPS)
-              slavesTX.put(keyVal._2.host, NIC_BitPS)
-              val temp = new ConcurrentHashMap[String, Double]()
-              idToClient.foreach {
-                secondKV =>
-                  temp.put(secondKV._1, NIC_BitPS)
-              }
-              fabric.put(keyVal._1, temp)
-          }
-        }
+
         schedule()
-        //DNBD Update cache here!!!
-        val start = new Thread (new Runnable {
-          override def run(): Unit = {
-            updateBpsFree(0.5)
-            updateFabric(0.5)
-          }
-        })
-        start.run()
+
       }
     }
 
@@ -621,8 +633,6 @@ private[varys] class Master(
     def calSourceBpsFree(activeCoflow: ArrayBuffer[CoflowInfo]): HashMap[String, Double] = {
       val sBpsFree = new HashMap[String, Double]()
       //val timeout = 500.millis
-
-      //TODO may block here, find a better way
       slavesTX.foreach{
         keyVal =>
           sBpsFree(keyVal._1) = keyVal._2
@@ -757,6 +767,7 @@ private[varys] object Master {
     val masterObj = new Master(systemName, actorName, args.ip, args.port, args.webUiPort)
     val (actorSystem, _) = masterObj.start()
     actorSystem.awaitTermination()
+
   }
 
   /** 
