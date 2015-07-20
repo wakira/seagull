@@ -12,8 +12,6 @@ import scala.collection.mutable.ListBuffer
 class YarnMapReduceLogParser(input : Iterator[String]) extends LogParser(input) {
   private class ContainerFetchFromAttempt(val source: String, val size: Int, val dest: String)
 
-
-  // FIXME add reducer fetch matcher as well
   final val lineMatchers : List[LogLineMatcher] = List(ContainerInfoLine, AttemptAssignmentLine, DataFetchLine)
 
   private var currentContainer : String = new String
