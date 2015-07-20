@@ -14,7 +14,6 @@ import scala.concurrent.{Future, Await, ExecutionContext}
  * Created by wakira on 15-7-17.
  */
 
-// TODO start DNBD
 
 case class WorkerOnline()
 case class PutComplete()
@@ -60,13 +59,14 @@ object Worker extends Logging {
   }
 
   def main(args: Array[String]) {
-    if (args.length < 2) {
-      println("USAGE: TraceWorker <varysMasterUrl> <TraceMasterUrl>")
+    if (args.length < 3) {
+      println("USAGE: TraceWorker <varysMasterUrl> <traceMasterUrl> <networkInterface>")
       System.exit(1)
     }
 
     val url = args(0)
     val tUrl = args(1)
+    val nInterface = args(2)
 
     var masterHost: String = null
     var masterPort: Int = 0
@@ -102,6 +102,8 @@ object Worker extends Logging {
     val listener = new TestListener
     val client = new VarysClient("TraceWorker", url, listener)
     client.start()
+    client.startDNBD(5678, nInterface)
+    Thread.sleep(5000)
 
     logInfo("Varys start Putting")
     /*
@@ -122,7 +124,7 @@ object Worker extends Logging {
 
     ois.readObject().asInstanceOf[StartGetting]
     logInfo("Received StartGetting")
-    Thread.sleep(100) // FIXME for debug
+    Thread.sleep(1000) // FIXME for debug
 
     if (jobMission.getList.nonEmpty) {
       logInfo("Varys start Getting")
@@ -136,6 +138,7 @@ object Worker extends Logging {
     oos.writeObject(GetComplete())
     oos.flush()
 
+    ois.readObject().asInstanceOf[StopWorker]
     logInfo("Worker finished")
 
     if (sock != null)

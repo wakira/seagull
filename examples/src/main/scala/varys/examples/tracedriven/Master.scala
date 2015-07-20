@@ -13,13 +13,13 @@ import varys.framework.client.{VarysClient, ClientListener}
  * Created by wakira on 15-7-17.
  */
 
-// TODO start DNBD
 
 case class PutDescription(id: String, size: Int)
 case class GetDescription(id: String)
 
 case class JobMission(coflowId: String, putList: List[PutDescription], getList: List[GetDescription])
 case class StartGetting()
+case class StopWorker()
 
 object Master extends Logging {
 
@@ -46,6 +46,7 @@ object Master extends Logging {
     var assignedWorkers = new AtomicInteger()
     var finishedWorkers = new AtomicInteger()
     var putCompletedWorkers = new AtomicInteger()
+    var getCompletedWorkers = new AtomicInteger()
     var connectedWorkers = new AtomicInteger()
     var stopServer = false
     this.setDaemon(true)
@@ -83,11 +84,13 @@ object Master extends Logging {
                     val nodeForWorker: String = getUnassignedNode
                     // filter flows with the node as source to construct putList
                     val putList = coflowDescription.flows.filter(_.source == nodeForWorker).map(flow =>
-                      new PutDescription("flow-" + flow.source + "-" + flow.dest + "-" + flow.uid.toString, flow.size)
+                      //new PutDescription("flow-" + flow.source + "-" + flow.dest + "-" + flow.uid.toString, flow.size)
+                      new PutDescription("flow-" + flow.uid.toString, flow.size)
                     )
                     // filter flows with the node as dest to construct getList
                     val getList = coflowDescription.flows.filter(_.dest == nodeForWorker).map(flow =>
-                      new GetDescription("flow-" + flow.source + "-" + flow.dest + "-" + flow.uid.toString)
+                      //new GetDescription("flow-" + flow.source + "-" + flow.dest + "-" + flow.uid.toString)
+                      new GetDescription("flow-" + flow.uid.toString)
                     )
 
                     // send coflowId and JobMission
@@ -95,20 +98,25 @@ object Master extends Logging {
 
                     // wait for ALL workers to complete put
                     ois.readObject().asInstanceOf[PutComplete]
-                    var completedWorkers = putCompletedWorkers.incrementAndGet()
-                    while (completedWorkers < nodesInCoflow.length) {
-                      Thread.sleep(5000) // FIXME choose appropriate value
-                      completedWorkers = putCompletedWorkers.get()
-                      logInfo("completedWorkers:" + completedWorkers.toString+" waiting "+ nodesInCoflow.length)
+                    putCompletedWorkers.incrementAndGet()
+                    while (putCompletedWorkers.get() < nodesInCoflow.length) {
+                      Thread.sleep(500) // FIXME choose appropriate value
                     }
 
                     // send StartGetting
                     logInfo("sending StartGetting")
                     oos.writeObject(StartGetting)
 
-                    // wait for GetComplete
+                    // wait for ALL workers to complete get
                     ois.readObject().asInstanceOf[GetComplete]
-                    logInfo("received GetComplete")
+                    getCompletedWorkers.incrementAndGet()
+                    while (getCompletedWorkers.get() < nodesInCoflow.length) {
+                      Thread.sleep(5000) // FIXME choose appropriate value
+                    }
+
+                    logInfo("sending StopWorker")
+                    oos.writeObject(StopWorker)
+                    oos.flush()
                   } catch {
                     case e: Exception => {
                       logWarning ("TraceMaster had a " + e)
@@ -142,15 +150,15 @@ object Master extends Logging {
   }
 
   def main(args: Array[String]) {
-    if (args.length < 4) {
-      println("USAGE: TraceMaster <varysMasterUrl> <traceLogFile> <numWorkers> <listenPort>")
+    if (args.length < 3) {
+      println("USAGE: TraceMaster <varysMasterUrl> <traceLogFile> <listenPort> <networkInterface>")
       System.exit(1)
     }
 
     val url = args(0)
     val pathToFile = args(1)
-    val numWorkers = args(2).toInt
-    val listenPort = args(3).toInt
+    val listenPort = args(2).toInt
+    val nInterface = args(3)
 
     var fileName: String = null
 
@@ -161,6 +169,8 @@ object Master extends Logging {
     val listener = new TestListener
     val client = new VarysClient("TraceMaster", url, listener)
     client.start()
+    client.startDNBD(5678, nInterface)
+    Thread.sleep(5000)
 
     val varysDesc = new varys.framework.CoflowDescription(
       "Trace-" + fileName,
