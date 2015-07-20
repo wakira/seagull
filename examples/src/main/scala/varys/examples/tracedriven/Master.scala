@@ -44,7 +44,6 @@ object Master extends Logging {
     var serverSocket: ServerSocket = new ServerSocket(listenPort)
 
     var assignedWorkers = new AtomicInteger()
-    var finishedWorkers = new AtomicInteger()
     var putCompletedWorkers = new AtomicInteger()
     var getCompletedWorkers = new AtomicInteger()
     var connectedWorkers = new AtomicInteger()
@@ -141,7 +140,7 @@ object Master extends Logging {
       // Shutdown the thread pool
       threadPool.shutdown()
     }
-    def finished = finishedWorkers.get() == coflowDescription.width
+    def finished = getCompletedWorkers.get() == nodesInCoflow.length
 
     def getUnassignedNode : String= {
       val index = assignedWorkers.getAndIncrement()
@@ -150,7 +149,7 @@ object Master extends Logging {
   }
 
   def main(args: Array[String]) {
-    if (args.length < 3) {
+    if (args.length < 4) {
       println("USAGE: TraceMaster <varysMasterUrl> <traceLogFile> <listenPort> <networkInterface>")
       System.exit(1)
     }
