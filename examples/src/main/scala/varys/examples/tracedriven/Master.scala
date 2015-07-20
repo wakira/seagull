@@ -15,8 +15,8 @@ import varys.framework.client.{VarysClient, ClientListener}
 
 // TODO start DNBD
 
-class PutDescription(val id: String, val size: Int)
-class GetDescription(val id: String)
+case class PutDescription(id: String, size: Int)
+case class GetDescription(id: String)
 
 case class JobMission(coflowId: String, putList: List[PutDescription], getList: List[GetDescription])
 case class StartGetting()
@@ -83,11 +83,11 @@ object Master extends Logging {
                     val nodeForWorker: String = getUnassignedNode
                     // filter flows with the node as source to construct putList
                     val putList = coflowDescription.flows.filter(_.source == nodeForWorker).map(flow =>
-                      new PutDescription("flow-"+flow.source+"-"+flow.dest, flow.size)
+                      new PutDescription("flow-" + flow.source + "-" + flow.dest + "-" + flow.uid.toString, flow.size)
                     )
                     // filter flows with the node as dest to construct getList
-                    val getList = coflowDescription.flows.filter(_.source == nodeForWorker).map(flow =>
-                      new GetDescription("flow-"+flow.source+"-"+flow.dest)
+                    val getList = coflowDescription.flows.filter(_.dest == nodeForWorker).map(flow =>
+                      new GetDescription("flow-" + flow.source + "-" + flow.dest + "-" + flow.uid.toString)
                     )
 
                     // send coflowId and JobMission
@@ -96,16 +96,19 @@ object Master extends Logging {
                     // wait for ALL workers to complete put
                     ois.readObject().asInstanceOf[PutComplete]
                     var completedWorkers = putCompletedWorkers.incrementAndGet()
-                    while (completedWorkers < coflowDescription.width) {
-                      Thread.sleep(500) // FIXME choose appropriate value
+                    while (completedWorkers < nodesInCoflow.length) {
+                      Thread.sleep(5000) // FIXME choose appropriate value
                       completedWorkers = putCompletedWorkers.get()
+                      logInfo("completedWorkers:" + completedWorkers.toString+" waiting "+ nodesInCoflow.length)
                     }
 
                     // send StartGetting
+                    logInfo("sending StartGetting")
                     oos.writeObject(StartGetting)
 
-                    // wait for PutComplete
-                    ois.readObject().asInstanceOf[PutComplete]
+                    // wait for GetComplete
+                    ois.readObject().asInstanceOf[GetComplete]
+                    logInfo("received GetComplete")
                   } catch {
                     case e: Exception => {
                       logWarning ("TraceMaster had a " + e)
@@ -152,7 +155,7 @@ object Master extends Logging {
     var fileName: String = null
 
     // run log2coflow on file
-    val input = scala.io.Source.fromFile(args(0)).getLines()
+    val input = scala.io.Source.fromFile(pathToFile).getLines()
     val desc = new YarnMapReduceLogParser(input).run()
 
     val listener = new TestListener

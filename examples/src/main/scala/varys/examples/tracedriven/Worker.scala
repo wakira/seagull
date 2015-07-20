@@ -34,6 +34,9 @@ object Worker extends Logging {
 
   private val traceMasterUrlRegex = "([^:]+):([0-9]+)".r
 
+  // ExecutionContext for Futures
+  implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
+
   var sock: Socket = null
   var oos: ObjectOutputStream = null
   var ois: ObjectInputStream = null
@@ -101,11 +104,17 @@ object Worker extends Logging {
     client.start()
 
     logInfo("Varys start Putting")
+    /*
     val putFutureList = Future.traverse(jobMission.putList)(x => Future{
       client.putFake(x.id, jobMission.coflowId, x.size, 1)
       logInfo("Varys put id " + x.id + " with size " + x.size.toString)
     })
     Await.result(putFutureList, Duration.Inf)
+    */
+    jobMission.putList.foreach(x => {
+      client.putFake(x.id, jobMission.coflowId, x.size, 1)
+      logInfo("Varys put id " + x.id + " with size " + x.size.toString)
+    })
     logInfo("Varys Put Completed")
 
     oos.writeObject(PutComplete())
@@ -113,17 +122,21 @@ object Worker extends Logging {
 
     ois.readObject().asInstanceOf[StartGetting]
     logInfo("Received StartGetting")
+    Thread.sleep(100) // FIXME for debug
 
-    logInfo("Varys start Gutting")
-    val getFutureList = Future.traverse(jobMission.getList)(x => Future{
-      client.getFake(x.id, jobMission.coflowId)
-      logInfo("Varys got id " + x.id)
-    })
-    Await.result(getFutureList, Duration.Inf)
-    logInfo("Varys Get Completed")
-
+    if (jobMission.getList.nonEmpty) {
+      logInfo("Varys start Getting")
+      val getFutureList = Future.traverse(jobMission.getList)(x => Future {
+        client.getFake(x.id, jobMission.coflowId)
+        logInfo("asking Varys to get id " + x.id)
+      })
+      Await.result(getFutureList, Duration.Inf)
+      logInfo("Get Complete")
+    }
     oos.writeObject(GetComplete())
     oos.flush()
+
+    logInfo("Worker finished")
 
     if (sock != null)
       sock.close()
