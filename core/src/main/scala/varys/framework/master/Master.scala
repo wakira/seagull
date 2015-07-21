@@ -61,6 +61,7 @@ private[varys] class Master(
   val slavesTX = new ConcurrentHashMap[String, Double]()
   val slavesRX = new ConcurrentHashMap[String, Double]()
   val fabric = new ConcurrentHashMap[String, ConcurrentHashMap[String, Double]]()
+  val slaveIdToClient = new ConcurrentHashMap[String, ArrayBuffer[String]]()
   //DNBD thread
   var DNBDT: Thread = null
   val NIC_BitPS = 1024 * 1048576.0 * 0.5
@@ -109,6 +110,7 @@ private[varys] class Master(
       // context.system.scheduler.schedule(0 millis, SLAVE_TIMEOUT millis, self, CheckForSlaveTimeOut)
 
       //frankfzw: start master of dnbd
+      /*
       DNBDT = new Thread (new Runnable {
         override def run(): Unit = {
           logInfo("Master of DNBD is working")
@@ -120,6 +122,7 @@ private[varys] class Master(
         }
       })
       DNBDT.run()
+      */
 
     }
 
@@ -170,17 +173,27 @@ private[varys] class Master(
           // context.watch doesn't work with remote actors but helps for testing
           // context.watch(currentSender)
           val slave = hostToSlave(host)
+          // add client to slaveIdToClient
+          if (slaveIdToClient.contains(slave.id)) {
+            slaveIdToClient.get(slave.id).append(client.id)
+          } else {
+            val temp = new ArrayBuffer[String]()
+            temp.append(client.id)
+            slaveIdToClient.put(slave.id, temp)
+          }
           currentSender ! RegisteredClient(
             client.id, 
             slave.id, 
             "varys://" + slave.host + ":" + slave.port)
           
-          logInfo("Registered client " + clientName + " with ID " + client.id + " in " + 
-            (now - st) + " milliseconds")
+          logInfo("Registered client " + clientName + " with ID " + client.id + " in " + slave.id +
+            "within" + (now - st) + " milliseconds")
 
           //init the tx and rx with the default value
-          slavesRX.put(client.host, NIC_BitPS)
-          slavesTX.put(client.host, NIC_BitPS)
+          slavesRX.put(client.host, (NIC_BitPS - idToRxBps.getBps(slave.id) * 8))
+          slavesTX.put(client.host, (NIC_BitPS - idToRxBps.getBps(slave.id) * 8))
+
+          //TODO frankfzw, update later
           val temp = new ConcurrentHashMap[String, Double]()
           idToClient.foreach {
             secondKV =>
@@ -228,6 +241,17 @@ private[varys] class Master(
 
           idToRxBps.updateNetworkStats(slaveId, newRxBps)
           idToTxBps.updateNetworkStats(slaveId, newTxBps)
+
+          //frankfzw upadte slaveTx and slaveRx
+          if (slaveIdToClient.get(slaveId) != null) {
+            for (clientId <- slaveIdToClient.get(slaveId)) {
+              val tempClient = idToClient.get(clientId)
+              slavesRX.put(tempClient.host, (NIC_BitPS - idToRxBps.getBps(slaveId) * 8))
+              slavesTX.put(tempClient.host, (NIC_BitPS - idToRxBps.getBps(slaveId) * 8))
+            }
+          }
+
+          logInfo("Receive heartbeat from %s, RxBps: %f, TxBps: %f".format(slaveId, newRxBps, newTxBps))
         } else {
           logWarning("Got heartbeat from unregistered slave " + slaveId)
         }

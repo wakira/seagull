@@ -112,12 +112,13 @@ private[varys] class SlaveActor(
       logInfo("Successfully registered with master")
 
       // Do not send stats by default
-      val sendStats = System.getProperty("varys.slave.sendStats", "false").toBoolean
+      val sendStats = System.getProperty("varys.slave.sendStats", "true").toBoolean
       if (sendStats) {
         // Thread to periodically update last{Rx|Tx}Bytes
         context.system.scheduler.schedule(0 millis, HEARTBEAT_SEC * 1000 millis) {
           updateNetStats()
           master ! Heartbeat(slaveId, curRxBps, curTxBps)
+          logInfo("Send heartbeat RxBps: %f, TxBps: %f".format(curRxBps, curTxBps))
         }
       }
     }
@@ -256,7 +257,7 @@ private[varys] class SlaveActor(
 
     // FIXME: Sometimes Sigar stops responding, and printing something here brings it back!!!
     // This bug also causes Slave actors to stop responding, which causes the client failures.
-    logInfo(rxBps + " " + txBps)
+    logInfo("ID: " + slaveId + "\t" + rxBps + " " + txBps)
   }
 }
 
