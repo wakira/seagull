@@ -62,6 +62,7 @@ private[varys] class Master(
   val slavesRX = new ConcurrentHashMap[String, Double]()
   val fabric = new ConcurrentHashMap[String, ConcurrentHashMap[String, Double]]()
   val slaveIdToClient = new ConcurrentHashMap[String, ArrayBuffer[String]]()
+  val readyToSchedule = new ConcurrentHashMap[String, Int]
   //DNBD thread
   var DNBDT: Thread = null
   val NIC_BitPS = 1024 * 1048576.0 * 0.5
@@ -155,6 +156,9 @@ private[varys] class Master(
           while (webUi.boundPort == None) {
             Thread.sleep(100)
           }
+
+          // frankfzw add slave to readyToSchedule table
+          readyToSchedule.put(id, 0)
           
           // context.watch doesn't work with remote actors but helps for testing
           // context.watch(currentSender)  
@@ -173,14 +177,7 @@ private[varys] class Master(
           // context.watch doesn't work with remote actors but helps for testing
           // context.watch(currentSender)
           val slave = hostToSlave(host)
-          // add client to slaveIdToClient
-          if (slaveIdToClient.contains(slave.id)) {
-            slaveIdToClient.get(slave.id).append(client.id)
-          } else {
-            val temp = new ArrayBuffer[String]()
-            temp.append(client.id)
-            slaveIdToClient.put(slave.id, temp)
-          }
+
           currentSender ! RegisteredClient(
             client.id, 
             slave.id, 
@@ -189,7 +186,7 @@ private[varys] class Master(
           logInfo("Registered client " + clientName + " with ID " + client.id + " in " + slave.id +
             "within" + (now - st) + " milliseconds")
 
-          //init the tx and rx with the default value
+          // frankfzw init the tx and rx with the default value
           slavesRX.put(client.host, (NIC_BitPS - idToRxBps.getBps(slave.id) * 8))
           slavesTX.put(client.host, (NIC_BitPS - idToRxBps.getBps(slave.id) * 8))
 
@@ -243,7 +240,7 @@ private[varys] class Master(
           idToTxBps.updateNetworkStats(slaveId, newTxBps)
 
           //frankfzw upadte slaveTx and slaveRx
-          if (slaveIdToClient.get(slaveId) != null) {
+          if ((slaveIdToClient.containsKey(slaveId)) && (slaveIdToClient.get(slaveId).size != 0)) {
             for (clientId <- slaveIdToClient.get(slaveId)) {
               val tempClient = idToClient.get(clientId)
               slavesRX.put(tempClient.host, (NIC_BitPS - idToRxBps.getBps(slaveId) * 8))
@@ -252,6 +249,21 @@ private[varys] class Master(
           }
 
           logInfo("Receive heartbeat from %s, RxBps: %f, TxBps: %f".format(slaveId, newRxBps, newTxBps))
+
+          // frankfzw check if it's ready to schedule
+          var slaveNum: Int = 0
+          var times: Int = 0
+          for (kv <- readyToSchedule) {
+            times = kv._2 + times
+            slaveNum = slaveNum + 1
+          }
+          if (times == slaveNum) {
+            for (kv <- readyToSchedule) {
+              readyToSchedule.update(kv._1, 0)
+            }
+            logInfo("Schedule interval, update rate table now")
+            schedule()
+          }
         } else {
           logWarning("Got heartbeat from unregistered slave " + slaveId)
         }
@@ -295,6 +307,7 @@ private[varys] class Master(
       }
 
       case CheckForSlaveTimeOut => {
+        timeOutDeadSlaves()
         timeOutDeadSlaves()
       }
 
@@ -485,6 +498,10 @@ private[varys] class Master(
       actorToSlave(actor) = slave
       addressToSlave(actor.path.address) = slave
       hostToSlave(slave.host) = slave
+
+      //frankfzw update slave id to client table
+      val temp = new ArrayBuffer[String]()
+      slaveIdToClient.put(id, temp)
       slave
     }
 
@@ -495,6 +512,9 @@ private[varys] class Master(
       actorToSlave -= slave.actor
       addressToSlave -= slave.actor.path.address
       hostToSlave -= slave.host
+
+      //frankfzw remove dead slave from slaveIdToClient
+      slaveIdToClient.remove(slave.id)
     }
 
     def addClient(clientName: String, host: String, commPort: Int, actor: ActorRef): ClientInfo = {
@@ -503,6 +523,15 @@ private[varys] class Master(
       idToClient.put(client.id, client)
       actorToClient(actor) = client
       addressToClient(actor.path.address) = client
+
+      // frankfzw add client to slaveIdToClient
+      val slave = hostToSlave.get(client.host)
+      if (slaveIdToClient.containsKey(slave.id)) {
+        slaveIdToClient.get(slave.id).append(client.id)
+      } else {
+        logError("The client comes from nowhere")
+      }
+
       client
     }
 
@@ -515,7 +544,19 @@ private[varys] class Master(
         client.markFinished()
 
         // Remove child coflows as well
-        client.coflows.foreach(removeCoflow)  
+        client.coflows.foreach(removeCoflow)
+
+        // frankfzw remove client id from slaveIdToClient
+        logInfo("Removing client" + client.id + " from " + client.host)
+        if (hostToSlave.get(client.host) != null) {
+          logError("The client comes from nowhere")
+        }
+        val slave = hostToSlave.get(client.host)
+        if (slaveIdToClient.containsKey(slave.id)) {
+          slaveIdToClient.get(slave.id) -= client.id
+        } else {
+          logError("The client comes from nowhere")
+        }
       }
     }
 
