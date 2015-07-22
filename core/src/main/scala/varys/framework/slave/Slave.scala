@@ -32,6 +32,9 @@ private[varys] class SlaveActor(
   
   val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
 
+  // frankfzw property of interface
+  val INTERFACE = System.getenv("VARYS_INTERFACE")
+
   val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
   var dataServer: DataServer = null
 
@@ -75,7 +78,7 @@ private[varys] class SlaveActor(
   }
 
   override def preStart() {
-    logInfo("Starting Varys slave %s:%d".format(ip, port))
+    logInfo("Starting Varys slave %s:%d on interface: %s".format(ip, port, INTERFACE))
     varysHome = new File(Option(System.getenv("VARYS_HOME")).getOrElse("."))
     logInfo("Varys home: " + varysHome)
     createWorkDir()
@@ -222,7 +225,20 @@ private[varys] class SlaveActor(
     var curTxBytes = 0.0;
     
     try {
-      val netIfs = sigar.getNetInterfaceList()
+      //val netIfs = sigar.getNetInterfaceList()
+
+      val net = sigar.getNetInterfaceStat(INTERFACE)
+
+      val r = net.getRxBytes()
+      if (r >= 0) {
+        curRxBytes += r
+      }
+
+      val t = net.getTxBytes()
+      if (t >= 0.0) {
+        curTxBytes += t
+      }
+      /*
       for (i <- 0 until netIfs.length) {
         val net = sigar.getNetInterfaceStat(netIfs(i))
       
@@ -236,11 +252,14 @@ private[varys] class SlaveActor(
           curTxBytes += t
         }
       }
+      */
     } catch {
       case se: SigarException => {
         println(se)
+        logError("Cannot listen on interface: " + INTERFACE)
       }
     }
+
     
     var rxBps = 0.0
     var txBps = 0.0

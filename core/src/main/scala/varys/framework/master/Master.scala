@@ -548,14 +548,14 @@ private[varys] class Master(
 
         // frankfzw remove client id from slaveIdToClient
         logInfo("Removing client" + client.id + " from " + client.host)
-        if (hostToSlave.get(client.host) != null) {
-          logError("The client comes from nowhere")
+        if (hostToSlave.get(client.host) == null) {
+          logError("The client %s comes from nowhere".format(client.id))
         }
         val slave = hostToSlave.get(client.host)
         if (slaveIdToClient.containsKey(slave.id)) {
           slaveIdToClient.get(slave.id) -= client.id
         } else {
-          logError("The client comes from nowhere")
+          logError("The client %s comes from nowhere".format(client.id))
         }
       }
     }
