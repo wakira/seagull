@@ -59,14 +59,15 @@ object Worker extends Logging {
   }
 
   def main(args: Array[String]) {
-    if (args.length < 3) {
-      println("USAGE: TraceWorker <varysMasterUrl> <traceMasterUrl> <networkInterface>")
+    if (args.length < 2) {
+      //println("USAGE: TraceWorker <varysMasterUrl> <traceMasterUrl> <networkInterface>")
+      println("USAGE: TraceWorker <varysMasterUrl> <traceMasterUrl>")
       System.exit(1)
     }
 
     val url = args(0)
     val tUrl = args(1)
-    val nInterface = args(2)
+    //val nInterface = args(2)
 
     var masterHost: String = null
     var masterPort: Int = 0
@@ -102,8 +103,8 @@ object Worker extends Logging {
     val listener = new TestListener
     val client = new VarysClient("TraceWorker", url, listener)
     client.start()
-    client.startDNBD(5678, nInterface)
-    Thread.sleep(5000)
+    //client.startDNBD(5678, nInterface)
+    //Thread.sleep(5000)
 
     logInfo("Varys start Putting")
     /*
@@ -124,7 +125,7 @@ object Worker extends Logging {
 
     ois.readObject().asInstanceOf[StartGetting]
     logInfo("Received StartGetting")
-    Thread.sleep(1000) // FIXME for debug
+    //Thread.sleep(1000) // FIXME for debug
 
     if (jobMission.getList.nonEmpty) {
       logInfo("Varys start Getting")

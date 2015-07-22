@@ -110,7 +110,7 @@ object Master extends Logging {
                     ois.readObject().asInstanceOf[GetComplete]
                     getCompletedWorkers.incrementAndGet()
                     while (getCompletedWorkers.get() < nodesInCoflow.length) {
-                      Thread.sleep(5000) // FIXME choose appropriate value
+                      Thread.sleep(500) // FIXME choose appropriate value
                     }
 
                     logInfo("sending StopWorker")
@@ -149,15 +149,16 @@ object Master extends Logging {
   }
 
   def main(args: Array[String]) {
-    if (args.length < 4) {
-      println("USAGE: TraceMaster <varysMasterUrl> <traceLogFile> <listenPort> <networkInterface>")
+    if (args.length < 3) {
+      //println("USAGE: TraceMaster <varysMasterUrl> <traceLogFile> <listenPort> <networkInterface>")
+      println("USAGE: TraceMaster <varysMasterUrl> <traceLogFile> <listenPort>")
       System.exit(1)
     }
 
     val url = args(0)
     val pathToFile = args(1)
     val listenPort = args(2).toInt
-    val nInterface = args(3)
+    //val nInterface = args(3)
 
     var fileName: String = null
 
@@ -168,8 +169,8 @@ object Master extends Logging {
     val listener = new TestListener
     val client = new VarysClient("TraceMaster", url, listener)
     client.start()
-    client.startDNBD(5678, nInterface)
-    Thread.sleep(5000)
+    //client.startDNBD(5678, nInterface)
+    //Thread.sleep(5000)
 
     val varysDesc = new varys.framework.CoflowDescription(
       "Trace-" + fileName,
