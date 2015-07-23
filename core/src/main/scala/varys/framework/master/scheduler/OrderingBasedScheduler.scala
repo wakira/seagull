@@ -113,7 +113,7 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
         val dst = flowInfo.destClient.host
 
         var minFree = math.min(sBpsFree(src), rBpsFree(dst))
-        minFree = math.min(flowInfo.bottleneck, minFree)
+        //minFree = math.min(flowInfo.bottleneck, minFree)
         if (minFree > 0.0) {
           flowInfo.currentBps += minFree
           sBpsFree(src) = sBpsFree(src) - minFree

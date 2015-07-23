@@ -604,13 +604,14 @@ private[varys] class Master(
         (x.curState == CoflowState.READY || x.curState == CoflowState.RUNNING))
 
       //DNBD get the real bottleneck here of the network
-      val realActiveCoflows = calFlowBottleneck(activeCoflows)
+      //val realActiveCoflows = calFlowBottleneck(activeCoflows)
       //TODO get the real bandwidth of all source and destination
       val sBpsFree = calSourceBpsFree(activeCoflows)
       val dBpsFree = calDestinationBpsFree(activeCoflows)
 
       val activeSlaves = idToSlave.values.toBuffer.asInstanceOf[ArrayBuffer[SlaveInfo]]
-      val schedulerOutput = coflowScheduler.schedule(SchedulerInput(realActiveCoflows, activeSlaves, sBpsFree, dBpsFree))
+      //val schedulerOutput = coflowScheduler.schedule(SchedulerInput(realActiveCoflows, activeSlaves, sBpsFree, dBpsFree))
+      val schedulerOutput = coflowScheduler.schedule(SchedulerInput(activeCoflows, activeSlaves, sBpsFree, dBpsFree))
 
       val step12Dur = now - st
       st = now
