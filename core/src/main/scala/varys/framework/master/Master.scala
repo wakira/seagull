@@ -247,7 +247,7 @@ private[varys] class Master(
               slavesTX.put(tempClient.host, (NIC_BitPS - idToRxBps.getBps(slaveId) * 8))
             }
           }
-
+          readyToSchedule.put(slaveId, 1)
           logInfo("Receive heartbeat from %s, RxBps: %f, TxBps: %f".format(slaveId, newRxBps, newTxBps))
 
           // frankfzw check if it's ready to schedule
