@@ -248,7 +248,7 @@ private[varys] class Master(
             }
           }
           readyToSchedule.put(slaveId, 1)
-          logInfo("Receive heartbeat from %s, RxBps: %f, TxBps: %f".format(slaveId, newRxBps, newTxBps))
+          logInfo("Receive heartbeat from %s, RxBps: %f, TxBps: %f".format(slaveId, (NIC_BitPS / 8 - newRxBps), (NIC_BitPS / 8 - newTxBps)))
 
           // frankfzw check if it's ready to schedule
           var slaveNum: Int = 0
