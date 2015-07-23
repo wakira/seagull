@@ -61,6 +61,11 @@ private[varys] class Master(
   val slavesTX = new ConcurrentHashMap[String, Double]()
   val slavesRX = new ConcurrentHashMap[String, Double]()
   val fabric = new ConcurrentHashMap[String, ConcurrentHashMap[String, Double]]()
+  val slaveIdToClient = new ConcurrentHashMap[String, ArrayBuffer[String]]()
+  val readyToSchedule = new ConcurrentHashMap[String, Int]
+  //DNBD thread
+  var DNBDT: Thread = null
+  val NIC_BitPS = 1024 * 1048576.0 * 0.5
 
   // ExecutionContext for Futures
   implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
@@ -104,10 +109,31 @@ private[varys] class Master(
         webUi.start()
       }
       // context.system.scheduler.schedule(0 millis, SLAVE_TIMEOUT millis, self, CheckForSlaveTimeOut)
+
+      //frankfzw: start master of dnbd
+      /*
+      DNBDT = new Thread (new Runnable {
+        override def run(): Unit = {
+          logInfo("Master of DNBD is working")
+          while (true) {
+            updateBpsFree(0.5)
+            updateFabric(0.5)
+            Thread.sleep(10000)
+          }
+        }
+      })
+      DNBDT.run()
+      */
+
     }
 
     override def postStop() {
       webUi.stop()
+
+      //stop DNBDT
+      if (DNBDT != null) {
+        DNBDT.interrupt()
+      }
     }
 
     override def receive = {
@@ -130,6 +156,9 @@ private[varys] class Master(
           while (webUi.boundPort == None) {
             Thread.sleep(100)
           }
+
+          // frankfzw add slave to readyToSchedule table
+          readyToSchedule.put(id, 0)
           
           // context.watch doesn't work with remote actors but helps for testing
           // context.watch(currentSender)  
@@ -148,13 +177,26 @@ private[varys] class Master(
           // context.watch doesn't work with remote actors but helps for testing
           // context.watch(currentSender)
           val slave = hostToSlave(host)
+
           currentSender ! RegisteredClient(
             client.id, 
             slave.id, 
             "varys://" + slave.host + ":" + slave.port)
           
-          logInfo("Registered client " + clientName + " with ID " + client.id + " in " + 
-            (now - st) + " milliseconds")
+          logInfo("Registered client " + clientName + " with ID " + client.id + " in " + slave.id +
+            "within" + (now - st) + " milliseconds")
+
+          // frankfzw init the tx and rx with the default value
+          slavesRX.put(client.host, (NIC_BitPS - idToRxBps.getBps(slave.id) * 8))
+          slavesTX.put(client.host, (NIC_BitPS - idToRxBps.getBps(slave.id) * 8))
+
+          //TODO frankfzw, update later
+          val temp = new ConcurrentHashMap[String, Double]()
+          idToClient.foreach {
+            secondKV =>
+              temp.put(secondKV._1, NIC_BitPS)
+          }
+          fabric.put(client.id, temp)
         } else {
           currentSender ! RegisterClientFailed("No Varys slave at " + host)
         }
@@ -196,6 +238,32 @@ private[varys] class Master(
 
           idToRxBps.updateNetworkStats(slaveId, newRxBps)
           idToTxBps.updateNetworkStats(slaveId, newTxBps)
+
+          //frankfzw upadte slaveTx and slaveRx
+          if ((slaveIdToClient.containsKey(slaveId)) && (slaveIdToClient.get(slaveId).size != 0)) {
+            for (clientId <- slaveIdToClient.get(slaveId)) {
+              val tempClient = idToClient.get(clientId)
+              slavesRX.put(tempClient.host, (NIC_BitPS - idToRxBps.getBps(slaveId) * 8))
+              slavesTX.put(tempClient.host, (NIC_BitPS - idToRxBps.getBps(slaveId) * 8))
+            }
+          }
+          readyToSchedule.put(slaveId, 1)
+          logInfo("Receive heartbeat from %s, RxBps: %f, TxBps: %f".format(slaveId, (NIC_BitPS / 8 - newRxBps), (NIC_BitPS / 8 - newTxBps)))
+
+          // frankfzw check if it's ready to schedule
+          var slaveNum: Int = 0
+          var times: Int = 0
+          for (kv <- readyToSchedule) {
+            times = kv._2 + times
+            slaveNum = slaveNum + 1
+          }
+          if (times == slaveNum) {
+            for (kv <- readyToSchedule) {
+              readyToSchedule.update(kv._1, 0)
+            }
+            logInfo("Schedule interval, update rate table now")
+            schedule()
+          }
         } else {
           logWarning("Got heartbeat from unregistered slave " + slaveId)
         }
@@ -239,6 +307,7 @@ private[varys] class Master(
       }
 
       case CheckForSlaveTimeOut => {
+        timeOutDeadSlaves()
         timeOutDeadSlaves()
       }
 
@@ -320,29 +389,9 @@ private[varys] class Master(
       }
 
       case ScheduleRequest => {
-        if (slavesTX.size() == 0) {
-          val NIC_BitPS = 1024 * 1048576.0 * 0.5
-          idToClient.foreach {
-            keyVal =>
-              slavesRX.put(keyVal._2.host, NIC_BitPS)
-              slavesTX.put(keyVal._2.host, NIC_BitPS)
-              val temp = new ConcurrentHashMap[String, Double]()
-              idToClient.foreach {
-                secondKV =>
-                  temp.put(secondKV._1, NIC_BitPS)
-              }
-              fabric.put(keyVal._1, temp)
-          }
-        }
+
         schedule()
-        //DNBD Update cache here!!!
-        val start = new Thread (new Runnable {
-          override def run(): Unit = {
-            updateBpsFree(0.5)
-            updateFabric(0.5)
-          }
-        })
-        start.run()
+
       }
     }
 
@@ -449,6 +498,10 @@ private[varys] class Master(
       actorToSlave(actor) = slave
       addressToSlave(actor.path.address) = slave
       hostToSlave(slave.host) = slave
+
+      //frankfzw update slave id to client table
+      val temp = new ArrayBuffer[String]()
+      slaveIdToClient.put(id, temp)
       slave
     }
 
@@ -459,6 +512,9 @@ private[varys] class Master(
       actorToSlave -= slave.actor
       addressToSlave -= slave.actor.path.address
       hostToSlave -= slave.host
+
+      //frankfzw remove dead slave from slaveIdToClient
+      slaveIdToClient.remove(slave.id)
     }
 
     def addClient(clientName: String, host: String, commPort: Int, actor: ActorRef): ClientInfo = {
@@ -467,6 +523,15 @@ private[varys] class Master(
       idToClient.put(client.id, client)
       actorToClient(actor) = client
       addressToClient(actor.path.address) = client
+
+      // frankfzw add client to slaveIdToClient
+      val slave = hostToSlave.get(client.host)
+      if (slaveIdToClient.containsKey(slave.id)) {
+        slaveIdToClient.get(slave.id).append(client.id)
+      } else {
+        logError("The client comes from nowhere")
+      }
+
       client
     }
 
@@ -479,7 +544,19 @@ private[varys] class Master(
         client.markFinished()
 
         // Remove child coflows as well
-        client.coflows.foreach(removeCoflow)  
+        client.coflows.foreach(removeCoflow)
+
+        // frankfzw remove client id from slaveIdToClient
+        logInfo("Removing client" + client.id + " from " + client.host)
+        if (hostToSlave.get(client.host) == null) {
+          logError("The client %s comes from nowhere".format(client.id))
+        }
+        val slave = hostToSlave.get(client.host)
+        if (slaveIdToClient.containsKey(slave.id)) {
+          slaveIdToClient.get(slave.id) -= client.id
+        } else {
+          logError("The client %s comes from nowhere".format(client.id))
+        }
       }
     }
 
@@ -532,13 +609,14 @@ private[varys] class Master(
         (x.curState == CoflowState.READY || x.curState == CoflowState.RUNNING))
 
       //DNBD get the real bottleneck here of the network
-      val realActiveCoflows = calFlowBottleneck(activeCoflows)
+      //val realActiveCoflows = calFlowBottleneck(activeCoflows)
       //TODO get the real bandwidth of all source and destination
       val sBpsFree = calSourceBpsFree(activeCoflows)
       val dBpsFree = calDestinationBpsFree(activeCoflows)
 
       val activeSlaves = idToSlave.values.toBuffer.asInstanceOf[ArrayBuffer[SlaveInfo]]
-      val schedulerOutput = coflowScheduler.schedule(SchedulerInput(realActiveCoflows, activeSlaves, sBpsFree, dBpsFree))
+      //val schedulerOutput = coflowScheduler.schedule(SchedulerInput(realActiveCoflows, activeSlaves, sBpsFree, dBpsFree))
+      val schedulerOutput = coflowScheduler.schedule(SchedulerInput(activeCoflows, activeSlaves, sBpsFree, dBpsFree))
 
       val step12Dur = now - st
       st = now
@@ -626,8 +704,6 @@ private[varys] class Master(
     def calSourceBpsFree(activeCoflow: ArrayBuffer[CoflowInfo]): HashMap[String, Double] = {
       val sBpsFree = new HashMap[String, Double]()
       //val timeout = 500.millis
-
-      //TODO may block here, find a better way
       slavesTX.foreach{
         keyVal =>
           sBpsFree(keyVal._1) = keyVal._2
@@ -762,6 +838,7 @@ private[varys] object Master {
     val masterObj = new Master(systemName, actorName, args.ip, args.port, args.webUiPort)
     val (actorSystem, _) = masterObj.start()
     actorSystem.awaitTermination()
+
   }
 
   /** 

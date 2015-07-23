@@ -32,9 +32,9 @@ private[varys] object ReceiverClientFake extends Logging {
     val client = new VarysClient("ReceiverClientFake", url, listener)
     client.start()
     //DNBD start for test
-    client.startDNBD(5678, "p3p1")
+    //client.startDNBD(5678, "p3p1")
     
-    Thread.sleep(20000)
+    //Thread.sleep(20000)
     
     println("Trying to retrieve " + DATA_NAME)
     val st = System.currentTimeMillis()

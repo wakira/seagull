@@ -14,4 +14,7 @@ fi
 SCALA_HOME="/home/hduser/scala/scala-2.9.3"
 export SCALA_HOME
 
+JAVA_HOME="/usr/lib/jvm/java-7-oracle"
+export JAVA_HOME
+
 "$bin"/varys-daemon.sh start varys.framework.slave.Slave $1

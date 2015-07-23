@@ -34,7 +34,7 @@ private[varys] object SenderClientFake {
     client.start()
 
     //start DNBD
-    client.startDNBD(5678, "p3p1")
+    //client.startDNBD(5678, "p3p1")
 
     for (i <- 1 to 4) {
 
