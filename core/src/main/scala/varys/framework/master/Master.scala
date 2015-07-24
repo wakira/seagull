@@ -227,6 +227,7 @@ private[varys] class Master(
 
       case UnregisterCoflow(coflowId) => {
         removeCoflow(idToCoflow.get(coflowId))
+        logInfo("Unregister coflow with ID" + coflowId)
         sender ! true
       }
 
