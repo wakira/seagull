@@ -60,14 +60,12 @@ object Worker extends Logging {
 
   def main(args: Array[String]) {
     if (args.length < 2) {
-      //println("USAGE: TraceWorker <varysMasterUrl> <traceMasterUrl> <networkInterface>")
       println("USAGE: TraceWorker <varysMasterUrl> <traceMasterUrl>")
       System.exit(1)
     }
 
     val url = args(0)
     val tUrl = args(1)
-    //val nInterface = args(2)
 
     var masterHost: String = null
     var masterPort: Int = 0
@@ -103,8 +101,6 @@ object Worker extends Logging {
     val listener = new TestListener
     val client = new VarysClient("TraceWorker", url, listener)
     client.start()
-    //client.startDNBD(5678, nInterface)
-    //Thread.sleep(5000)
 
     logInfo("Varys start Putting")
     /*
@@ -115,7 +111,16 @@ object Worker extends Logging {
     Await.result(putFutureList, Duration.Inf)
     */
     jobMission.putList.foreach(x => {
-      client.putFake(x.id, jobMission.coflowId, x.size, 1)
+      val tempFile = new File("tracedriventmp", "coflow-"+jobMission.coflowId+"-flow-"+x.id.toString+".tmp")
+      val putData = Array.tabulate[Byte](x.size)(_.hashCode().toByte)
+      val outputStream = new FileOutputStream(tempFile)
+      try {
+        outputStream.write(putData)
+      } finally {
+        outputStream.close()
+      }
+      client.putFile(x.id, tempFile.getAbsolutePath, jobMission.coflowId, x.size, 1)
+      //client.putObject[Array[Byte]](x.id, putData, jobMission.coflowId, x.size, 1)
       logInfo("Varys put id " + x.id + " with size " + x.size.toString)
     })
     logInfo("Varys Put Completed")
@@ -130,7 +135,8 @@ object Worker extends Logging {
     if (jobMission.getList.nonEmpty) {
       logInfo("Varys start Getting")
       val getFutureList = Future.traverse(jobMission.getList)(x => Future {
-        client.getFake(x.id, jobMission.coflowId)
+        client.getFile(x.id, jobMission.coflowId)
+        //client.getObject[Array[Int]](x.id, jobMission.coflowId)
         logInfo("asking Varys to get id " + x.id)
       })
       Await.result(getFutureList, Duration.Inf)

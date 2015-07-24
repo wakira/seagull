@@ -46,6 +46,7 @@ object Master extends Logging {
     var assignedWorkers = new AtomicInteger()
     var putCompletedWorkers = new AtomicInteger()
     var getCompletedWorkers = new AtomicInteger()
+    var shutdownWorkers = new AtomicInteger()
     var connectedWorkers = new AtomicInteger()
     var stopServer = false
     this.setDaemon(true)
@@ -116,6 +117,7 @@ object Master extends Logging {
                     logInfo("sending StopWorker")
                     oos.writeObject(StopWorker)
                     oos.flush()
+                    shutdownWorkers.incrementAndGet()
                   } catch {
                     case e: Exception => {
                       logWarning ("TraceMaster had a " + e)
@@ -140,7 +142,7 @@ object Master extends Logging {
       // Shutdown the thread pool
       threadPool.shutdown()
     }
-    def finished = getCompletedWorkers.get() == nodesInCoflow.length
+    def finished = shutdownWorkers.get() == nodesInCoflow.length
 
     def getUnassignedNode : String= {
       val index = assignedWorkers.getAndIncrement()
