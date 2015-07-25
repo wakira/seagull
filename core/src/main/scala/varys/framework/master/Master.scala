@@ -65,7 +65,7 @@ private[varys] class Master(
   val readyToSchedule = new ConcurrentHashMap[String, Int]
   //DNBD thread
   var DNBDT: Thread = null
-  val NIC_BitPS = 1024 * 1048576.0 * 0.5
+  val NIC_BitPS = System.getenv("VARYS_IFCAPACITY").toInt * 1024.0 * 1024.0 * 1024
 
   // ExecutionContext for Futures
   implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
@@ -103,6 +103,7 @@ private[varys] class Master(
 
     override def preStart() {
       logInfo("Starting Varys master at varys://" + ip + ":" + port)
+      logInfo("Interface capacity is " + System.getenv("VARYS_IFCAPACITY") + "Gbps == " + NIC_BitPS + "bps")
       // Listen for remote client disconnection events, since they don't go through Akka's watch()
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
       if (!webUiStarted.getAndSet(true)) {
@@ -188,7 +189,7 @@ private[varys] class Master(
 
           // frankfzw init the tx and rx with the default value
           slavesRX.put(client.host, (NIC_BitPS - idToRxBps.getBps(slave.id) * 8))
-          slavesTX.put(client.host, (NIC_BitPS - idToRxBps.getBps(slave.id) * 8))
+          slavesTX.put(client.host, (NIC_BitPS - idToTxBps.getBps(slave.id) * 8))
 
           //TODO frankfzw, update later
           val temp = new ConcurrentHashMap[String, Double]()
@@ -241,13 +242,18 @@ private[varys] class Master(
           idToTxBps.updateNetworkStats(slaveId, newTxBps)
 
           //frankfzw upadte slaveTx and slaveRx
+          slavesRX.put(slaveInfo.host, (NIC_BitPS - idToRxBps.getBps(slaveId) * 8))
+          slavesTX.put(slaveInfo.host, (NIC_BitPS - idToTxBps.getBps(slaveId) * 8))
+
+          /*
           if ((slaveIdToClient.containsKey(slaveId)) && (slaveIdToClient.get(slaveId).size != 0)) {
             for (clientId <- slaveIdToClient.get(slaveId)) {
               val tempClient = idToClient.get(clientId)
               slavesRX.put(tempClient.host, (NIC_BitPS - idToRxBps.getBps(slaveId) * 8))
-              slavesTX.put(tempClient.host, (NIC_BitPS - idToRxBps.getBps(slaveId) * 8))
+              slavesTX.put(tempClient.host, (NIC_BitPS - idToTxBps.getBps(slaveId) * 8))
             }
           }
+          */
           readyToSchedule.put(slaveId, 1)
           logInfo("Receive heartbeat from %s, RxBps: %f, TxBps: %f".format(slaveId, (NIC_BitPS / 8 - newRxBps), (NIC_BitPS / 8 - newTxBps)))
 
@@ -263,7 +269,7 @@ private[varys] class Master(
               readyToSchedule.update(kv._1, 0)
             }
             logInfo("Schedule interval, update rate table now")
-            //schedule()
+            schedule()
           }
         } else {
           logWarning("Got heartbeat from unregistered slave " + slaveId)

@@ -35,6 +35,8 @@ private[varys] class SlaveActor(
   // frankfzw property of interface
   val INTERFACE = System.getenv("VARYS_INTERFACE")
 
+  val NIC_BitPS = System.getenv("VARYS_IFCAPACITY").toInt * 1024.0 * 1024.0 * 1024
+
   val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
   var dataServer: DataServer = null
 
@@ -122,7 +124,7 @@ private[varys] class SlaveActor(
         context.system.scheduler.schedule(0 millis, HEARTBEAT_SEC * 1000 millis) {
           updateNetStats()
           master ! Heartbeat(slaveId, curRxBps, curTxBps)
-          logInfo("Send heartbeat RxBps: %f, TxBps: %f".format(curRxBps, curTxBps))
+          logInfo("Send heartbeat RxBps: %f, TxBps: %f, Reamining RxBps: %f, TxBps: %f".format(curRxBps, curTxBps, (NIC_BitPS / 8 - curRxBps), (NIC_BitPS / 8 - curTxBps)))
         }
       }
     }
