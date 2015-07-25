@@ -263,7 +263,7 @@ private[varys] class Master(
               readyToSchedule.update(kv._1, 0)
             }
             logInfo("Schedule interval, update rate table now")
-            schedule()
+            //schedule()
           }
         } else {
           logWarning("Got heartbeat from unregistered slave " + slaveId)

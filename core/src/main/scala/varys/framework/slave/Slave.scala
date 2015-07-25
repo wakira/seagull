@@ -30,7 +30,7 @@ private[varys] class SlaveActor(
     workDirPath: String = null)
   extends Actor with Logging {
   
-  val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
+  val HEARTBEAT_SEC = System.getenv("VARYS_HEARTBEAT").toInt
 
   // frankfzw property of interface
   val INTERFACE = System.getenv("VARYS_INTERFACE")
@@ -118,6 +118,7 @@ private[varys] class SlaveActor(
       val sendStats = System.getProperty("varys.slave.sendStats", "true").toBoolean
       if (sendStats) {
         // Thread to periodically update last{Rx|Tx}Bytes
+        logInfo("Slave heartbeat interval: %d".format(HEARTBEAT_SEC))
         context.system.scheduler.schedule(0 millis, HEARTBEAT_SEC * 1000 millis) {
           updateNetStats()
           master ! Heartbeat(slaveId, curRxBps, curTxBps)
