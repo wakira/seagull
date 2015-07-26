@@ -10,12 +10,13 @@ import varys.Logging
  */
 class DeadlineScheduler extends OrderingBasedScheduler with Logging {
 
-  val CONSIDER_DEADLINE = System.getProperty("varys.master.consdierDeadline", "false").toBoolean
+  //val CONSIDER_DEADLINE = System.getProperty("varys.master.consdierDeadline", "false").toBoolean
+  val CONSIDER_DEADLINE = System.getenv("VARYS_CONSIDER_DEADLINE").toBoolean
   val DEADLINE_PAD = System.getProperty("varys.master.deadlinePadding", "0.1").toDouble
   val MIN_DEADLINE = System.getProperty("varys.master.minDeadlineMillis", "200").toInt
 
   if (!CONSIDER_DEADLINE) {
-    logError("varys.master.consdierDeadline must be true for DeadlineScheduler")
+    logError("VARYS_CONSIDER_DEADLINE must be true for DeadlineScheduler")
     System.exit(1)
   }
 
