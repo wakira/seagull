@@ -18,7 +18,10 @@ private[varys] class CoflowInfo(
     val parentClient: ClientInfo,
     val submitDate: Date,
     val actor: ActorRef) {
-  
+
+  // frankfzw data to remember the timestamp of last scheduling
+  var lastScheduled: Long = 0L
+
   private var _prevState = CoflowState.WAITING
   def prevState = _prevState
   

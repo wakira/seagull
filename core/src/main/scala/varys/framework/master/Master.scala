@@ -36,7 +36,7 @@ private[varys] class Master(
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
   
-  val CONSIDER_DEADLINE = System.getProperty("varys.master.considerDeadline", "false").toBoolean
+  val CONSIDER_DEADLINE = System.getenv("VARYS_CONSIDER_DEADLINE").toBoolean
 
   val idToSlave = new ConcurrentHashMap[String, SlaveInfo]()
   val actorToSlave = new ConcurrentHashMap[ActorRef, SlaveInfo]

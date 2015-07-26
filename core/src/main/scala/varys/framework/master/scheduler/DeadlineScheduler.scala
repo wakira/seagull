@@ -31,12 +31,22 @@ class DeadlineScheduler extends OrderingBasedScheduler with Logging {
       rBpsFree: Map[String, Double]): Boolean = {
     
     val minMillis = math.max(cf.calcRemainingMillis(sBpsFree, rBpsFree) * (1 + DEADLINE_PAD), MIN_DEADLINE)
+
+    //frankfzw : calculate the remaining deadline
+    val st = System.currentTimeMillis
+    if (cf.lastScheduled != 0L) {
+      cf.desc.deadlineMillis = cf.desc.deadlineMillis - (st - cf.lastScheduled)
+    }
     
     val rejected = (cf.curState == CoflowState.READY && minMillis > cf.desc.deadlineMillis)
     if (rejected) {
       val rejectMessage = "Minimum completion time of " + minMillis + 
         " millis is more than the deadline of " + cf.desc.deadlineMillis + " millis"
       logInfo("Marking " + cf + " for rejection => " + rejectMessage)
+    } else {
+      val acceptMsg = "Minimum completion time of " + minMillis +
+        " millis is LESS than the deadline of " + cf.desc.deadlineMillis + " millis"
+      logInfo("Marking " + cf + " for ACCEPT => " + acceptMsg)
     }
 
     rejected
