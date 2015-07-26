@@ -11,7 +11,7 @@ class CoflowDescription(
     val coflowType: CoflowType.CoflowType,  // http://www.scala-lang.org/node/7661
     val maxFlows: Int,  // Upper-bound on the number of flows
     val maxSizeInBytes: Long,  // Upper-bound on coflow size
-    var deadlineMillis: Long = 0)  // Greater than 0 is valid deadline, frankfzw: it should be updated after scheduling
+    val deadlineMillis: Long = 0)  // Greater than 0 is valid deadline
   extends Serializable {
 
   val user = System.getProperty("user.name", "<unknown>")
