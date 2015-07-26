@@ -73,9 +73,13 @@ private[varys] class Master(
   private def now() = System.currentTimeMillis
   
   // Create the scheduler object
+  /*
   val schedulerClass = System.getProperty(
     "varys.master.scheduler", 
     "varys.framework.master.scheduler.SEBFScheduler")
+  */
+
+  val schedulerClass = System.getenv("VARYS_SCHEDULER")
 
   val coflowScheduler = Class.forName(schedulerClass).newInstance.asInstanceOf[CoflowScheduler]
 
@@ -104,6 +108,7 @@ private[varys] class Master(
     override def preStart() {
       logInfo("Starting Varys master at varys://" + ip + ":" + port)
       logInfo("Interface capacity is " + System.getenv("VARYS_IFCAPACITY") + "Gbps == " + NIC_BitPS + "bps")
+      logInfo("Running in %s mode".format(schedulerClass))
       // Listen for remote client disconnection events, since they don't go through Akka's watch()
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
       if (!webUiStarted.getAndSet(true)) {
