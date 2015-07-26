@@ -124,7 +124,7 @@ case $startStop in
     varys_rotate_log $log
     echo starting $command, logging to $log
     cd "$VARYS_PREFIX"
-    nohup nice -n $VARYS_NICENESS "$VARYS_PREFIX"/run -Xmx4096m $command "$@" > "$log" 2>&1 < /dev/null &
+    nohup nice -n $VARYS_NICENESS "$VARYS_PREFIX"/run -Xmx8000m $command "$@" > "$log" 2>&1 < /dev/null &
     echo $! > $pid
     sleep 1; head "$log"
     ;;

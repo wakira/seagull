@@ -32,6 +32,11 @@ object Master extends Logging {
       logInfo("Disconnected from master")
       System.exit(0)
     }
+
+    override def coflowRejected(coflowId: String, rejectMessage: String): Unit = {
+      logInfo(coflowId + " was rejected: " + rejectMessage)
+      System.exit(0)
+    }
   }
 
   class MasterThread (val coflowId: String, val coflowDescription: CoflowDescription,
@@ -152,15 +157,17 @@ object Master extends Logging {
 
   def main(args: Array[String]) {
     if (args.length < 3) {
-      //println("USAGE: TraceMaster <varysMasterUrl> <traceLogFile> <listenPort> <networkInterface>")
-      println("USAGE: TraceMaster <varysMasterUrl> <traceLogFile> <listenPort>")
+      println("USAGE: TraceMaster <varysMasterUrl> <traceLogFile> <listenPort> [<deadlineMillis>]")
       System.exit(1)
     }
 
     val url = args(0)
     val pathToFile = args(1)
     val listenPort = args(2).toInt
-    //val nInterface = args(3)
+    var deadlineMillis: Long = 0
+    if (args.length == 4) {
+      deadlineMillis = args(3).toLong
+    }
 
     var fileName: String = null
 
@@ -176,7 +183,7 @@ object Master extends Logging {
 
     val varysDesc = new varys.framework.CoflowDescription(
       "Trace-" + fileName,
-      CoflowType.SHUFFLE, desc.width, desc.size)
+      CoflowType.SHUFFLE, desc.width, desc.size, deadlineMillis)
 
     val coflowId = client.registerCoflow(varysDesc)
     logInfo("Registered coflow " + coflowId)

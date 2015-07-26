@@ -29,6 +29,11 @@ object Worker extends Logging {
       logInfo("Disconnected from master")
       System.exit(0)
     }
+
+    override def coflowRejected(coflowId: String, rejectMessage: String): Unit = {
+      logInfo(coflowId + " was rejected: " + rejectMessage)
+      System.exit(0)
+    }
   }
 
   private val traceMasterUrlRegex = "([^:]+):([0-9]+)".r
