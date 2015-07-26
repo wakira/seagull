@@ -79,6 +79,9 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
           }
         }
 
+        //frankfzw set the scheduling timestamp of coflow
+        cf.lastScheduled = System.currentTimeMillis
+
         // Remove capacity from ALL sources and destination for this coflow
         // frankfzw: It's not right here
         /*
