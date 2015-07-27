@@ -59,12 +59,12 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
           var minFree = math.min(sBpsFree(src), rBpsFree(dst))
           //minFree = math.min(flowInfo.bottleneck, minFree)
           logInfo("Flow %s --> %s bottleneck: %f".format(flowInfo.source, flowInfo.destClient.host, minFree))
+
           if (minFree > 0.0) {
             flowInfo.currentBps = calcFlowRate(flowInfo, cf, minFree)
             if (math.abs(flowInfo.currentBps) < 1e-6) {
               flowInfo.currentBps = 0.0
             }
-            flowInfo.lastScheduled = System.currentTimeMillis
 
             // Remember how much capacity was allocated
             sUsed(src) = sUsed(src) + flowInfo.currentBps
@@ -77,6 +77,7 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
           } else {
             flowInfo.currentBps = 0.0
           }
+          flowInfo.lastScheduled = System.currentTimeMillis
         }
 
         //frankfzw set the scheduling timestamp of coflow

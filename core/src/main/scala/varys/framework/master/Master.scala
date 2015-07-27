@@ -655,8 +655,9 @@ private[varys] class Master(
       //DNBD get the real bottleneck here of the network
       //val realActiveCoflows = calFlowBottleneck(activeCoflows)
       //TODO get the real bandwidth of all source and destination
-      val sBpsFree = calSourceBpsFree(activeCoflows)
-      val dBpsFree = calDestinationBpsFree(activeCoflows)
+      //val sBpsFree = calSourceBpsFree(activeCoflows)
+      //val dBpsFree = calDestinationBpsFree(activeCoflows)
+      val (sBpsFree, dBpsFree) = calBpsFree(activeCoflows)
 
       val activeSlaves = idToSlave.values.toBuffer.asInstanceOf[ArrayBuffer[SlaveInfo]]
       //val schedulerOutput = coflowScheduler.schedule(SchedulerInput(realActiveCoflows, activeSlaves, sBpsFree, dBpsFree))
@@ -744,6 +745,32 @@ private[varys] class Master(
       tempCoflow
     }
 
+
+    def calBpsFree(activeCoflow: ArrayBuffer[CoflowInfo]): (HashMap[String, Double], HashMap[String, Double]) = {
+      val sBpsFree = new HashMap[String, Double]()
+      val dBpsFree = new HashMap[String, Double]()
+      //val timeout = 500.millis
+      slavesTX.foreach{
+        keyVal =>
+          sBpsFree(keyVal._1) = keyVal._2
+      }
+      slavesRX.foreach{
+        keyVal =>
+          dBpsFree(keyVal._1) = keyVal._2
+      }
+
+      for (cf <- activeCoflow) {
+        if (cf.curState == CoflowState.RUNNING) {
+          for (flow <- cf.getFlows) {
+            sBpsFree(flow.source) = sBpsFree(flow.source) + flow.currentBps
+            dBpsFree(flow.destClient.host) = dBpsFree(flow.destClient.host) + flow.currentBps
+          }
+        }
+      }
+
+      logInfo("DNBD: Master gets all remaining bandwidth of source and destination")
+      (sBpsFree, dBpsFree)
+    }
     //
     def calSourceBpsFree(activeCoflow: ArrayBuffer[CoflowInfo]): HashMap[String, Double] = {
       val sBpsFree = new HashMap[String, Double]()
@@ -752,6 +779,7 @@ private[varys] class Master(
         keyVal =>
           sBpsFree(keyVal._1) = keyVal._2
       }
+
 
       logInfo("DNBD: Master gets all remaining bandwidth of source: " + sBpsFree.values)
       sBpsFree
