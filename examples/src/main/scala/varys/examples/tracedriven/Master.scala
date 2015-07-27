@@ -3,10 +3,9 @@ package varys.examples.tracedriven
 import java.io.{ObjectInputStream, ObjectOutputStream}
 import java.net.{Socket, ServerSocket}
 import java.util.concurrent.atomic.AtomicInteger
-import _root_.log2coflow.YarnMapReduceLogParser
+import log2coflow.{FlowDescription, YarnMapReduceLogParser, CoflowDescription}
 import varys.{Logging, Utils}
 import varys.framework.{CoflowType}
-import _root_.log2coflow.CoflowDescription
 import varys.framework.client.{VarysClient, ClientListener}
 
 /**
@@ -157,7 +156,7 @@ object Master extends Logging {
 
   def main(args: Array[String]) {
     if (args.length < 3) {
-      println("USAGE: TraceMaster <varysMasterUrl> <traceLogFile> <listenPort> [<deadlineMillis>]")
+      println("USAGE: TraceMaster <varysMasterUrl> <traceLogFile> <listenPort> [<deadlineMillis>] [<sizeMultiplier>]")
       System.exit(1)
     }
 
@@ -165,15 +164,23 @@ object Master extends Logging {
     val pathToFile = args(1)
     val listenPort = args(2).toInt
     var deadlineMillis: Long = 0
-    if (args.length == 4) {
+    var sizeMultiplier = 1.0
+    if (args.length >= 4) {
       deadlineMillis = args(3).toLong
+    }
+    if (args.length == 5) {
+      sizeMultiplier = args(4).toDouble
     }
 
     var fileName: String = null
 
     // run log2coflow on file
     val input = scala.io.Source.fromFile(pathToFile).getLines()
-    val desc = new YarnMapReduceLogParser(input).run()
+    var desc = new YarnMapReduceLogParser(input).run()
+    // apply multiplier to flow size
+    if (sizeMultiplier != 1.0)
+      desc = new log2coflow.CoflowDescription(desc.flows.map(f =>
+        new FlowDescription(f.source, f.dest, (f.size*sizeMultiplier).toInt, f.uid)))
 
     val listener = new TestListener
     val client = new VarysClient("TraceMaster", url, listener)
