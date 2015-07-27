@@ -58,7 +58,7 @@ abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
           //DNBD: use bottleneck of every flow instead
           var minFree = math.min(sBpsFree(src), rBpsFree(dst))
           //minFree = math.min(flowInfo.bottleneck, minFree)
-          logInfo("Flow %s --> %s bottlneck: %f".format(flowInfo.source, flowInfo.destClient.host, flowInfo.bottleneck))
+          logInfo("Flow %s --> %s bottleneck: %f".format(flowInfo.source, flowInfo.destClient.host, minFree))
           if (minFree > 0.0) {
             flowInfo.currentBps = calcFlowRate(flowInfo, cf, minFree)
             if (math.abs(flowInfo.currentBps) < 1e-6) {

@@ -67,6 +67,8 @@ private[varys] class Master(
   var DNBDT: Thread = null
   val NIC_BitPS = System.getenv("VARYS_IFCAPACITY").toInt * 1024.0 * 1024.0 * 1024
 
+  val GAP_THRESHOLD = System.getenv("VARY_GAP_THRESHOLD").toDouble * 1024.0 * 1024.0
+
   // ExecutionContext for Futures
   implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
 
@@ -108,7 +110,7 @@ private[varys] class Master(
     override def preStart() {
       logInfo("Starting Varys master at varys://" + ip + ":" + port)
       logInfo("Interface capacity is " + System.getenv("VARYS_IFCAPACITY") + "Gbps == " + NIC_BitPS + "bps")
-      logInfo("Running in %s mode".format(schedulerClass))
+      logInfo("Running in %s mode".format(coflowScheduler.getClass))
       // Listen for remote client disconnection events, since they don't go through Akka's watch()
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
       if (!webUiStarted.getAndSet(true)) {
@@ -243,12 +245,38 @@ private[varys] class Master(
           slaveInfo.updateNetworkStats(newRxBps, newTxBps)
           slaveInfo.lastHeartbeat = System.currentTimeMillis()
 
-          idToRxBps.updateNetworkStats(slaveId, newRxBps)
-          idToTxBps.updateNetworkStats(slaveId, newTxBps)
+          logInfo("Receive heartbeat from %s, RxBps: %f, TxBps: %f".format(slaveId, (NIC_BitPS / 8 - newRxBps), (NIC_BitPS / 8 - newTxBps)))
 
-          //frankfzw upadte slaveTx and slaveRx
-          slavesRX.put(slaveInfo.host, (NIC_BitPS - idToRxBps.getBps(slaveId) * 8))
-          slavesTX.put(slaveInfo.host, (NIC_BitPS - idToTxBps.getBps(slaveId) * 8))
+          if ((math.abs(idToRxBps.getBps(slaveId) - newRxBps) > GAP_THRESHOLD) || (math.abs(idToTxBps.getBps(slaveId) - newTxBps) > GAP_THRESHOLD)) {
+            idToRxBps.updateNetworkStats(slaveId, newRxBps)
+            idToTxBps.updateNetworkStats(slaveId, newTxBps)
+
+            //frankfzw upadte slaveTx and slaveRx
+            slavesRX.put(slaveInfo.host, (NIC_BitPS - idToRxBps.getBps(slaveId) * 8))
+            slavesTX.put(slaveInfo.host, (NIC_BitPS - idToTxBps.getBps(slaveId) * 8))
+
+            readyToSchedule.put(slaveId, 1)
+            //logInfo("Receive heartbeat from %s, RxBps: %f, TxBps: %f".format(slaveId, (NIC_BitPS / 8 - newRxBps), (NIC_BitPS / 8 - newTxBps)))
+
+            // frankfzw check if it's ready to schedule
+            var slaveNum: Int = 0
+            var times: Int = 0
+            for (kv <- readyToSchedule) {
+              times = kv._2 + times
+              slaveNum = slaveNum + 1
+            }
+            if (times == slaveNum) {
+              for (kv <- readyToSchedule) {
+                readyToSchedule.update(kv._1, 0)
+              }
+              logInfo("Schedule is triggerd by heartbeat")
+              schedule()
+            }
+
+            //schedule()
+
+          }
+
 
           /*
           if ((slaveIdToClient.containsKey(slaveId)) && (slaveIdToClient.get(slaveId).size != 0)) {
@@ -259,6 +287,7 @@ private[varys] class Master(
             }
           }
           */
+          /*
           readyToSchedule.put(slaveId, 1)
           logInfo("Receive heartbeat from %s, RxBps: %f, TxBps: %f".format(slaveId, (NIC_BitPS / 8 - newRxBps), (NIC_BitPS / 8 - newTxBps)))
 
@@ -276,6 +305,9 @@ private[varys] class Master(
             logInfo("Schedule interval, update rate table now")
             schedule()
           }
+          */
+
+
         } else {
           logWarning("Got heartbeat from unregistered slave " + slaveId)
         }
