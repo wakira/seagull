@@ -33,6 +33,10 @@ class DeadlineScheduler extends OrderingBasedScheduler with Logging {
       rBpsFree: Map[String, Double]): Boolean = {
 
     //frankfzw : calculate the remaining deadline
+    if (cf.curState == CoflowState.RUNNING) {
+      logInfo(cf + "is running, don't reject it")
+      return false
+    }
     
     val minMillis = math.max(cf.calcRemainingMillis(sBpsFree, rBpsFree) * (1 + DEADLINE_PAD), MIN_DEADLINE)
     
