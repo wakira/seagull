@@ -115,7 +115,7 @@ object Master extends Logging {
                     ois.readObject().asInstanceOf[GetComplete]
                     getCompletedWorkers.incrementAndGet()
                     while (getCompletedWorkers.get() < nodesInCoflow.length) {
-                      Thread.sleep(500) // FIXME choose appropriate value
+                      Thread.sleep(50) // FIXME choose appropriate value
                     }
 
                     logInfo("sending StopWorker")
