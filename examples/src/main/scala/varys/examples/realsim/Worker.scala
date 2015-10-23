@@ -67,7 +67,8 @@ class Worker(val varysUrl: String, masterUrl: String) extends Actor with Logging
           logError("Failed to connect to master", e)
           System.exit(1)
       }
-    case ActorProtocol.JobMission(cfId, putList, getList) =>
+      case ActorProtocol.JobMission(cfId, putList: List[_], getList: List[_]) =>
+      logInfo("Task coflow id: " + cfId + "received")
       cfIdToGetList.put(cfId, getList)
       val future = Future.traverse(putList)(x => Future {
         val tempFile = new File("tracedriventmp", "coflow-"+cfId+"-flow-"+x.id.toString+".tmp")
@@ -89,6 +90,11 @@ class Worker(val varysUrl: String, masterUrl: String) extends Actor with Logging
       future.onComplete(_ => master ! ActorProtocol.GetComplete(cfId))
     case ActorProtocol.JobComplete(cfId) =>
       cfIdToGetList.remove(cfId)
+    case ActorProtocol.ShutdownWorker =>
+      logInfo("Jobs done, worker offline")
+      context.system.shutdown()
+    case _ =>
+      logError("Unmatched message!")
   }
 }
 

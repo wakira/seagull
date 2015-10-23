@@ -91,6 +91,7 @@ private[varys] class ThrottledInputStream(
     while (maxBytesPerSec <= 0.0) {
       mBPSLock.synchronized {
         logTrace(this + " maxBytesPerSec <= 0.0. Sleeping.")
+        //logInfo(this + " maxBytesPerSec <= 0.0. Sleeping.")
         mBPSLock.wait()
       }
     }

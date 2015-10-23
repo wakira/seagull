@@ -5,8 +5,8 @@ package varys.examples.realsim
  * Created by wakira on 15-8-5.
  */
 
-class PutDescription(val id:String, val size: Int)
-class GetDescription(val id:String)
+case class PutDescription(id:String, size: Int)
+case class GetDescription(id:String)
 
 object ActorProtocol {
   // To be sent by Master
@@ -17,7 +17,6 @@ object ActorProtocol {
 
   // To be sent by Worker
   case object WorkerOnline
-  case class JobMissionAck(cfId: String)
   case class PutComplete(cfId: String)
   case class GetComplete(cfId: String)
 }

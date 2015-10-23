@@ -624,7 +624,7 @@ private[varys] class Master(
 
     def removeCoflow(coflow: CoflowInfo, endState: CoflowState.Value, reschedule: Boolean) {
       if (coflow != null && idToCoflow.containsValue(coflow)) {
-        idToCoflow.remove(coflow.id)
+        //idToCoflow.remove(coflow.id)
         completedCoflows += coflow  // Remember it in our history
         coflow.markFinished(endState)
         logInfo("Removing " + coflow)

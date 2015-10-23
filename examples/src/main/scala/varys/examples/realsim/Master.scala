@@ -2,6 +2,7 @@ package varys.examples.realsim
 
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import collection.JavaConversions.enumerationAsScalaIterator
 
 import akka.actor._
 import akka.routing.RoundRobinRouter
@@ -20,19 +21,19 @@ import scala.collection.mutable
 
 class Master(varysUrl: String, jobs: List[(log2coflow.CoflowDescription, Int)], numNodes: Int)
   extends Actor with Logging {
-  val sortedJobs = jobs.sortBy(_._2) // sort jobs by their start time (if not already sorted = =)
-  val numOnlineWorkers: AtomicInteger = new AtomicInteger()
-  val nodeToActor = new ConcurrentHashMap[String, ActorRef]()
-  val workerList = new mutable.MutableList[ActorRef]
-  val jobDistributionThread: JobDistributionThread = new JobDistributionThread
-  var varysClient: VarysClient = null
+  private val sortedJobs = jobs.sortBy(_._2) // sort jobs by their start time (if not already sorted = =)
+  private val numOnlineWorkers: AtomicInteger = new AtomicInteger()
+  private val nodeToActor = new ConcurrentHashMap[String, ActorRef]()
+  private val workerList = new mutable.MutableList[ActorRef]
+  private val jobDistributionThread: JobDistributionThread = new JobDistributionThread
+  private var varysClient: VarysClient = null
 
-  val cfIdToCoflowDescription = new ConcurrentHashMap[String, log2coflow.CoflowDescription]
-  val numPutCompleted = new ConcurrentHashMap[String, AtomicInteger]
-  val numGetCompleted = new ConcurrentHashMap[String, AtomicInteger]
-  val numNodesInCoflow = new ConcurrentHashMap[String, Int]
-  val cfIdToStartTime = new ConcurrentHashMap[String, Long]
-  val cfIdToEndTime = new ConcurrentHashMap[String, Long]
+  private val cfIdToCoflowDescription = new ConcurrentHashMap[String, log2coflow.CoflowDescription]
+  private val numPutCompleted = new ConcurrentHashMap[String, AtomicInteger]
+  private val numGetCompleted = new ConcurrentHashMap[String, AtomicInteger]
+  private val cfIdToStartTime = new ConcurrentHashMap[String, Long]
+  private val cfIdToEndTime = new ConcurrentHashMap[String, Long]
+  private val numCompletedJobs = new AtomicInteger()
 
   private class JobDistributionThread extends Thread("JobDistribution") with Logging {
     override def run(): Unit = {
@@ -45,7 +46,10 @@ class Master(varysUrl: String, jobs: List[(log2coflow.CoflowDescription, Int)], 
 
         val cfId = varysClient.registerCoflow(new CoflowDescription(
           cf.hashCode().toString, CoflowType.SHUFFLE, cf.width, cf.size)) // TODO add deadline
-        numNodesInCoflow.put(cfId, cf.nodes.size)
+        // initialize data structures to track states of completion
+        cfIdToCoflowDescription.put(cfId, cf)
+        numPutCompleted.put(cfId, new AtomicInteger())
+        numGetCompleted.put(cfId, new AtomicInteger())
         // construct put list and get list
         cf.nodes.foreach(node => {
           val putList = cf.flows.filter(_.source == node).map(flow =>
@@ -62,20 +66,52 @@ class Master(varysUrl: String, jobs: List[(log2coflow.CoflowDescription, Int)], 
   }
 
   private def distributeJob() = {
-    jobDistributionThread.run()
+    jobDistributionThread.start()
+  }
+
+  private def stopAllWorkers() = {
+    workerList.foreach(worker =>
+      worker ! ActorProtocol.ShutdownWorker
+    )
+  }
+
+  private def printStatistics() = {
+    // print each coflow's start time, completion time, and CCT
+    val numCoflows = cfIdToCoflowDescription.size()
+    val sizeToCCT = new mutable.HashMap[Int, Long]
+    var cctSum = 0L
+    enumerationAsScalaIterator(cfIdToCoflowDescription.keys()).foreach(cfId => {
+      val cf = cfIdToCoflowDescription.get(cfId)
+      val st = cfIdToStartTime.get(cfId)
+      val et = cfIdToEndTime.get(cfId)
+      val cct = et - st
+      sizeToCCT.put(cf.size, cct)
+      cctSum += cct
+      println("%s with size:%d width:%d starts at %d and ends at %d, CCT:%d".format(
+        cfId, cf.size, cf.width, st, et, cct))
+    })
+    // compute and print average CCT
+    println("Average CCT is %d".format(cctSum/numCoflows))
+    // compute and print 90%(?)-smaller CCT
+    val smaller90cct = sizeToCCT.toSeq.sortBy(_._1).slice(0, (numCoflows*0.9).toInt).foldLeft(0L)(_ + _._2)
+    println("Average CCT of 90 percent smaller coflows is %d".format(smaller90cct/numCoflows))
+    val smaller80cct = sizeToCCT.toSeq.sortBy(_._1).slice(0, (numCoflows*0.8).toInt).foldLeft(0L)(_ + _._2)
+    println("Average CCT of 80 percent smaller coflows is %d".format(smaller80cct/numCoflows))
   }
 
   override protected def receive: Receive = {
     case Master.Init =>
       // put (if any) initialization code after preStart here
     case ActorProtocol.WorkerOnline =>
-      workerList += sender
-      nodeToActor.put(numOnlineWorkers.getAndIncrement().toString, sender)
+      val currentWorker = sender
+      logInfo(sender.toString() + "is online")
+      workerList += currentWorker
+      nodeToActor.put(numOnlineWorkers.getAndIncrement().toString, currentWorker)
       if (numOnlineWorkers.get() == numNodes)
         distributeJob()
     case ActorProtocol.PutComplete(cfId) =>
       // increase counter for that job, send StartGetting to every worker after received from all workers
-      if (numPutCompleted.get(cfId).incrementAndGet() == numNodesInCoflow.get(cfId)) {
+      if (numPutCompleted.get(cfId).incrementAndGet() == cfIdToCoflowDescription.get(cfId).nodes.size) {
         cfIdToStartTime.put(cfId, System.currentTimeMillis)
         cfIdToCoflowDescription.get(cfId).nodes.foreach(node =>
           nodeToActor.get(node) ! ActorProtocol.StartGetting(cfId)
@@ -83,12 +119,17 @@ class Master(varysUrl: String, jobs: List[(log2coflow.CoflowDescription, Int)], 
       }
     case ActorProtocol.GetComplete(cfId) =>
       // increase counter for that job, send JobComplete to every worker after received from all workers
-      if (numGetCompleted.get(cfId).incrementAndGet() == numNodesInCoflow.get(cfId)) {
+      if (numGetCompleted.get(cfId).incrementAndGet() == cfIdToCoflowDescription.get(cfId).nodes.size) {
         cfIdToEndTime.put(cfId, System.currentTimeMillis)
         cfIdToCoflowDescription.get(cfId).nodes.foreach(node =>
           nodeToActor.get(node) ! ActorProtocol.JobComplete(cfId)
         )
         varysClient.unregisterCoflow(cfId)
+        if (numCompletedJobs.incrementAndGet() == jobs.length) {
+          stopAllWorkers()
+          printStatistics()
+          context.system.shutdown()
+        }
       }
   }
 
